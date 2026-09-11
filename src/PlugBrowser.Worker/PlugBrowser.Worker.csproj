@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- WinExe, not Exe: opening a plugin editor needs a real window station and message pump, and a
+         console subsystem process would flash a window on every probe during a full scan. -->
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- The VST3 host is x64-only; no RuntimeIdentifier (it would orphan the exe under win-x64\). -->
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- Required by the LibraryImport source generator used for the Win32 interop. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Drawing.Common" Version="9.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PlugBrowser.Core\PlugBrowser.Core.csproj" />
+    <ProjectReference Include="..\..\..\NetPlugHost\managed\NetPlugHost\NetPlugHost.csproj" />
+  </ItemGroup>
+
+  <!-- A ProjectReference does not carry loose native files, so the native half must be copied
+       explicitly beside this exe. Same mechanism StreamRecorder uses. -->
+  <Import Project="..\..\..\NetPlugHost\NetPlugHost.Native.targets" />
+
+</Project>

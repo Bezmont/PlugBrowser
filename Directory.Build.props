@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- The VST3 host is x64-only. Deliberately no RuntimeIdentifier: setting one
+         orphans the exe under win-x64\ (learned in StreamRecorder). -->
+    <PlatformTarget>x64</PlatformTarget>
+  </PropertyGroup>
+</Project>

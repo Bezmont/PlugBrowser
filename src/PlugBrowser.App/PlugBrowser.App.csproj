@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.3" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.2.3" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PlugBrowser.Core\PlugBrowser.Core.csproj" />
+
+    <!-- Built before us, but never referenced as an assembly: the worker runs as a separate process
+         precisely so its crashes cannot reach this one. SkipGetTargetFrameworkProperties suppresses the
+         TFM compatibility check, which would otherwise reject net9.0-windows from this net9.0 project
+         even though no assembly reference is being made. -->
+    <ProjectReference Include="..\PlugBrowser.Worker\PlugBrowser.Worker.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+  </ItemGroup>
+
+  <!--
+    Copy the worker and its dependencies next to the app.
+
+    A ProjectReference with ReferenceOutputAssembly="false" builds the worker but copies nothing,
+    so the files are gathered by hand. The native VST3 host and its managed wrapper come along
+    too: the worker resolves both from its own directory at run time.
+  -->
+  <Target Name="CopyWorker" AfterTargets="Build">
+    <PropertyGroup>
+      <WorkerOutDir>..\PlugBrowser.Worker\bin\$(Configuration)\net9.0-windows\</WorkerOutDir>
+      <NativeWorkerDir>..\..\native\build\bin\</NativeWorkerDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <WorkerFiles Include="$(WorkerOutDir)PlugBrowser.Worker.*" />
+      <WorkerFiles Include="$(WorkerOutDir)NetPlugHost.dll" />
+      <WorkerFiles Include="$(WorkerOutDir)Vst3HostNative.dll" />
+      <WorkerFiles Include="$(WorkerOutDir)System.Drawing.Common.dll" />
+      <WorkerFiles Include="$(WorkerOutDir)System.Private.Windows.Core.dll" />
+
+      <!-- The native worker is built by CMake, not MSBuild, so it is copied when present and
+           simply skipped otherwise; the app falls back to the managed worker in that case. -->
+      <WorkerFiles Include="$(NativeWorkerDir)PlugBrowser.NativeWorker.exe" />
+      <WorkerFiles Include="$(NativeWorkerDir)Vst3HostNative.dll" />
+
+    </ItemGroup>
+    <Copy SourceFiles="@(WorkerFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(WorkerFiles)' != ''" />
+  </Target>
+
+</Project>

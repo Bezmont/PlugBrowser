@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PlugBrowser.App.ViewModels"
+        x:Class="PlugBrowser.App.Views.DuplicatesWindow"
+        x:DataType="vm:DuplicatesViewModel"
+        Title="Duplicate Plugins Across Formats"
+        Width="1320" Height="780"
+        MinWidth="820" MinHeight="500"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#8B93A7" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="#8B93A7" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <!-- The redundant copies are the point of the view, so the keeper is de-emphasised rather than
+         the other way round. -->
+    <Style Selector="DataGridRow.preferred">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+
+    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+      <TextBlock Text="Duplicate plugins across formats" FontSize="18" FontWeight="Bold" />
+      <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="12" />
+      <TextBlock Text="{Binding UniqueSummary}" Classes="label" Margin="0,2,0,0" />
+      <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,8,0,0"
+                 Text="A VST2 and a VST3 build of the same plugin are usually installed together by one installer. Keeping only the VST3 is normally safe — but check first that no project you still open depends on the VST2 build, because a DAW cannot substitute one for the other." />
+    </StackPanel>
+
+    <Border DockPanel.Dock="Bottom" Margin="0,12,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding RowCountLabel}" Classes="label"
+                   VerticalAlignment="Center" />
+        <Button Grid.Column="1" Content="Copy as spreadsheet" Click="OnCopyClick" Margin="0,0,8,0" />
+        <Button Grid.Column="2" Content="Close" Click="OnCloseClick" MinWidth="90" />
+      </Grid>
+    </Border>
+
+    <!-- Folders worth switching off, which is the action this whole view exists to inform. -->
+    <Border DockPanel.Dock="Bottom" Background="#12151C" CornerRadius="6" Padding="12" Margin="0,12,0,0"
+            IsVisible="{Binding HasDuplicates}">
+      <StackPanel>
+        <TextBlock Text="FOLDERS HOLDING THE REDUNDANT COPIES" Classes="section" />
+        <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,4,0,6"
+                   Text="Switch these off under Scan locations to drop the duplicates from the catalog. The files stay on disk." />
+        <ItemsControl ItemsSource="{Binding RedundantFolders}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <TextBlock Text="{Binding}" FontSize="11" Foreground="#9BA3B7" Margin="0,1" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
+    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+      <Panel Grid.Column="0" MaxWidth="420" HorizontalAlignment="Left">
+        <TextBox Text="{Binding SearchText}" Watermark="Filter by name, vendor or location…" />
+        <Button Content="✕" Command="{Binding ClearSearchCommand}"
+                IsVisible="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                Background="Transparent" BorderThickness="0" Padding="6,2" FontSize="12" />
+      </Panel>
+      <CheckBox Grid.Column="1" Content="Show only the redundant copies"
+                IsChecked="{Binding RedundantOnly}" VerticalAlignment="Center" />
+    </Grid>
+
+    <DataGrid ItemsSource="{Binding Rows}" Name="Grid"
+              IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True"
+              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+              LoadingRow="OnLoadingRow">
+      <DataGrid.Columns>
+        <!-- Widths are set so each header fits its own text; anything wider than the window scrolls
+             horizontally rather than clipping a column to an unreadable stub. -->
+        <DataGridTextColumn Header="Plugin" Binding="{Binding Name}" Width="185" />
+        <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="85" />
+        <DataGridTextColumn Header="Installed as" Binding="{Binding FormatsInGroup}" Width="110" />
+        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="118" />
+        <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="145" />
+        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
+        <DataGridTextColumn Header="Arch" Binding="{Binding Architecture}" Width="70" />
+        <DataGridTextColumn Header="MB" Binding="{Binding SizeMb}" Width="70" />
+        <DataGridCheckBoxColumn Header="Shot" Binding="{Binding HasScreenshot}" Width="60" />
+        <DataGridTextColumn Header="Binary location" Binding="{Binding Location}"
+                            Width="*" MinWidth="280" />
+      </DataGrid.Columns>
+    </DataGrid>
+
+  </DockPanel>
+</Window>

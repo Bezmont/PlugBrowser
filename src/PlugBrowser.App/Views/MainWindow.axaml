@@ -1,0 +1,350 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PlugBrowser.App.ViewModels"
+        x:Class="PlugBrowser.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="PlugBrowser"
+        Width="1280" Height="820"
+        MinWidth="900" MinHeight="600">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#8B93A7" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="#8B93A7" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,14,0,6" />
+    </Style>
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="#2A3040" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="5,1" />
+    </Style>
+  </Window.Styles>
+
+  <Panel>
+    <DockPanel>
+
+      <!-- Toolbar -->
+      <Border DockPanel.Dock="Top" Background="#1B1F2A" Padding="12,10" BorderBrush="#2A3040"
+              BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <TextBlock Grid.Column="0" Text="PlugBrowser" FontSize="16" FontWeight="Bold"
+                     VerticalAlignment="Center" Margin="0,0,20,0" />
+
+          <Panel Grid.Column="1" MaxWidth="520" MinWidth="320" HorizontalAlignment="Left">
+            <TextBox Text="{Binding SearchText}"
+                     Watermark="Search name, vendor, category…" />
+            <!-- Inside the box rather than beside it, so it reads as part of the field. -->
+            <Button Content="✕" Command="{Binding ClearSearchCommand}"
+                    IsVisible="{Binding HasSearchText}"
+                    HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                    Background="Transparent" BorderThickness="0" Padding="6,2" FontSize="12"
+                    ToolTip.Tip="Clear the search" />
+          </Panel>
+
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0">
+            <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}"
+                    IsVisible="{Binding HasAnyFilter}"
+                    ToolTip.Tip="Reset every filter, including the search box" />
+            <Button Content="Scan &amp; Options…" Click="OnOptionsClick" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Status bar -->
+      <Border DockPanel.Dock="Bottom" Background="#1B1F2A" Padding="12,6" BorderBrush="#2A3040"
+              BorderThickness="0,1,0,0">
+        <Grid ColumnDefinitions="*,Auto,Auto">
+          <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center" FontSize="12"
+                     TextTrimming="CharacterEllipsis" />
+          <ProgressBar Grid.Column="1" Width="160" Height="6" Margin="12,0"
+                       Value="{Binding RescanProgress}" Maximum="100"
+                       VerticalAlignment="Center" IsVisible="{Binding IsScanning}" />
+          <TextBlock Grid.Column="2" Text="{Binding CountSummary}" Classes="label"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
+      <!-- Body: facets | gallery | splitter | details. The detail column's width is restored and saved
+           by the code-behind; the gallery's MinWidth keeps the splitter from crushing it. -->
+      <Grid Name="Body">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="228" />
+          <ColumnDefinition Width="*" MinWidth="240" />
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="340" MinWidth="340" />
+        </Grid.ColumnDefinitions>
+
+      <!-- Facets -->
+      <Border Grid.Column="0" Background="#171A23" BorderBrush="#2A3040"
+              BorderThickness="0,0,1,0">
+        <!-- Spacing lives on the content, not as ScrollViewer padding: padding there shrinks the
+             viewport without extending the scroll extent, so the last item was clipped at the bottom. -->
+        <ScrollViewer>
+          <StackPanel Margin="12,4,12,16">
+            <TextBlock Text="FORMAT" Classes="section" />
+            <CheckBox Content="{Binding Vst3Label}" IsChecked="{Binding ShowVst3}" />
+            <CheckBox Content="{Binding Vst2Label}" IsChecked="{Binding ShowVst2}" />
+            <CheckBox Content="{Binding UniqueLabel}" IsChecked="{Binding UniqueOnly}"
+                      ToolTip.Tip="Hide plugins that are also installed in another format" />
+
+            <TextBlock Text="TYPE" Classes="section" />
+            <CheckBox Content="{Binding EffectsLabel}" IsChecked="{Binding ShowEffects}" />
+            <CheckBox Content="{Binding InstrumentsLabel}" IsChecked="{Binding ShowInstruments}" />
+
+            <TextBlock Text="VENDOR" Classes="section" />
+            <ComboBox ItemsSource="{Binding Vendors}" SelectedItem="{Binding SelectedVendor}"
+                      HorizontalAlignment="Stretch" />
+
+            <!-- Categories come from the plugins' own subcategory tags, so the list reflects what is
+                 actually installed rather than a fixed vocabulary. -->
+            <Grid ColumnDefinitions="*,Auto" Margin="0,14,0,6">
+              <TextBlock Grid.Column="0" Text="CATEGORY" Classes="section" Margin="0" />
+              <Button Grid.Column="1" Content="Clear" Command="{Binding ClearCategoriesCommand}"
+                      IsVisible="{Binding HasCategoryFilter}"
+                      Background="Transparent" BorderThickness="0" Padding="4,0"
+                      Foreground="#7AA2F7" FontSize="11" />
+            </Grid>
+
+            <ItemsControl ItemsSource="{Binding Categories}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CategoryFilterViewModel">
+                  <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected}"
+                            FontSize="12" MinHeight="26" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <TextBlock Text="OTHER" Classes="section" />
+            <CheckBox Content="{Binding FavoritesLabel}" IsChecked="{Binding FavoritesOnly}" />
+            <CheckBox Content="{Binding WithImagesLabel}" IsChecked="{Binding WithImagesOnly}" />
+            <CheckBox Content="{Binding ProblemsLabel}" IsChecked="{Binding ProblemsOnly}" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <!-- Detail pane -->
+      <Border Grid.Column="3" Background="#171A23" Padding="16">
+        <Panel>
+          <TextBlock Text="Select a plugin to see its details."
+                     Classes="label" TextWrapping="Wrap" TextAlignment="Center"
+                     HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock.IsVisible>
+              <Binding Path="Selected" Converter="{x:Static ObjectConverters.IsNull}" />
+            </TextBlock.IsVisible>
+          </TextBlock>
+
+          <!-- Several plugins selected: only traits they genuinely share are shown. -->
+          <ScrollViewer IsVisible="{Binding HasMultipleSelected}">
+            <StackPanel>
+              <TextBlock Text="{Binding SelectionSummary}" FontSize="18" FontWeight="Bold"
+                         TextWrapping="Wrap" />
+              <TextBlock Text="{Binding SelectionImageCount}" Classes="label" Margin="0,2,0,12" />
+
+              <TextBlock Text="IN COMMON" Classes="section" />
+              <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Vendor" Classes="label" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding CommonVendor}" FontSize="12"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Format" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding CommonFormat}" FontSize="12"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Type" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding CommonKind}" FontSize="12"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Category" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding CommonCategory}" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,4,0,0" />
+              </Grid>
+
+              <TextBlock Text="ACTIONS" Classes="section" />
+              <TextBlock TextWrapping="Wrap" Classes="label"
+                         Text="Reload these plugins and recapture their editors. Use this after authorising a plugin whose screenshot caught its registration prompt." />
+              <Button Content="Reload &amp; recapture selected" Margin="0,8,0,0"
+                      HorizontalAlignment="Left"
+                      Command="{Binding RescanSelectedCommand}" IsVisible="{Binding !IsScanning}" />
+              <Button Content="Cancel reload" Margin="0,8,0,0" HorizontalAlignment="Left"
+                      Command="{Binding CancelRescanCommand}" IsVisible="{Binding IsScanning}" />
+            </StackPanel>
+          </ScrollViewer>
+
+          <ScrollViewer IsVisible="{Binding HasSingleSelected}">
+            <StackPanel DataContext="{Binding Selected}" x:DataType="vm:PluginItemViewModel">
+              <StackPanel.IsVisible>
+                <Binding Path="." Converter="{x:Static ObjectConverters.IsNotNull}" />
+              </StackPanel.IsVisible>
+
+              <!-- Click opens the capture full size. -->
+              <Border Background="#0F1218" CornerRadius="6" Margin="0,0,0,4" Padding="1"
+                      Cursor="Hand" PointerPressed="OnDetailImagePressed">
+                <Panel>
+                  <Border Height="150" IsVisible="{Binding !HasImage}">
+                    <TextBlock Text="{Binding Initials}" FontSize="46" FontWeight="Bold"
+                               Foreground="#39415A"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                  <Image Source="{Binding DetailImage}" Stretch="Uniform" IsVisible="{Binding HasImage}" />
+                </Panel>
+              </Border>
+              <TextBlock Text="Click the image to view it full size" Classes="label"
+                         Margin="0,0,0,12" IsVisible="{Binding HasImage}" />
+
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="18" FontWeight="Bold"
+                           TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Copy name" Click="OnCopyNameClick"
+                        VerticalAlignment="Top" Margin="8,2,0,0" Padding="8,3" FontSize="11"
+                        ToolTip.Tip="Copy the plugin name to the clipboard (Ctrl+C)" />
+              </Grid>
+              <TextBlock Text="{Binding Vendor}" Classes="label" Margin="0,2,0,12" />
+
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Border Classes="badge"><TextBlock Text="{Binding FormatLabel}" FontSize="11" /></Border>
+                <Border Classes="badge"><TextBlock Text="{Binding KindLabel}" FontSize="11" /></Border>
+                <Border Classes="badge"><TextBlock Text="{Binding ArchitectureLabel}" FontSize="11" /></Border>
+              </StackPanel>
+
+              <TextBlock Text="DETAILS" Classes="section" />
+              <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Category" Classes="label" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Category}" FontSize="12"
+                           TextWrapping="Wrap" />
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Version" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Version}" FontSize="12"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Parameters" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ParameterSummary}" FontSize="12"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Editor" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding EditorSizeLabel}" FontSize="12"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Size" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding SizeLabel}" FontSize="12"
+                           Margin="0,4,0,0" />
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Status" Classes="label" Margin="0,4,0,0" />
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding StateLabel}" FontSize="12"
+                           TextWrapping="Wrap" Margin="0,4,0,0" />
+              </Grid>
+
+              <TextBlock Text="{Binding StateDetail}" FontSize="11" Foreground="#E0A458"
+                         TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding IsProblem}" />
+
+              <TextBlock Text="LOCATION" Classes="section" />
+              <TextBlock Text="{Binding Path}" FontSize="11" TextWrapping="Wrap" Foreground="#9BA3B7" />
+
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+                <Button Content="Reveal in Explorer"
+                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RevealInExplorerCommand}"
+                        CommandParameter="{Binding}" />
+                <Button Content="★"
+                        Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ToggleFavoriteCommand}"
+                        CommandParameter="{Binding}" />
+              </StackPanel>
+
+              <Button Content="Reload &amp; recapture"
+                      HorizontalAlignment="Left" Margin="0,8,0,0"
+                      Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RescanSelectedCommand}" />
+            </StackPanel>
+          </ScrollViewer>
+        </Panel>
+      </Border>
+
+      <!-- Gallery -->
+      <DockPanel Grid.Column="1">
+        <Border DockPanel.Dock="Top" Padding="12,8" Background="#12151C">
+          <Grid ColumnDefinitions="Auto,*">
+            <TextBlock Grid.Column="0" Text="{Binding ResultCount}" FontSize="14" FontWeight="SemiBold"
+                       VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}" Classes="label"
+                       VerticalAlignment="Center" Margin="12,0,0,0"
+                       IsVisible="{Binding HasMultipleSelected}" />
+          </Grid>
+        </Border>
+
+        <ListBox ItemsSource="{Binding Visible}" SelectedItem="{Binding Selected}"
+                 SelectionMode="Multiple"
+                 SelectionChanged="OnGallerySelectionChanged"
+                 DoubleTapped="OnGalleryDoubleTapped"
+                 Background="#12151C" Padding="8" Name="Gallery">
+          <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ListBox.ItemsPanel>
+
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:PluginItemViewModel">
+              <!--
+                Cards share one width and let height follow the image, so every thumbnail is drawn at the
+                plugin's real proportions instead of being cropped or stretched into a uniform box.
+              -->
+              <Border Width="204" Background="#1B1F2A" CornerRadius="6" Margin="4" Padding="10">
+                <StackPanel>
+                  <Border Background="#0F1218" CornerRadius="4" ClipToBounds="True">
+                    <Panel Width="184" Height="{Binding ThumbnailHeight}">
+                      <TextBlock Text="{Binding Initials}" FontSize="30" FontWeight="Bold"
+                                 Foreground="#39415A"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 IsVisible="{Binding !HasImage}" />
+                      <Image Source="{Binding Thumbnail}" Stretch="Uniform"
+                             IsVisible="{Binding HasImage}" />
+                    </Panel>
+                  </Border>
+
+                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,0"
+                             TextTrimming="CharacterEllipsis" MaxLines="1" />
+                  <TextBlock Text="{Binding Vendor}" Classes="label"
+                             TextTrimming="CharacterEllipsis" MaxLines="1" />
+
+                  <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,5,0,0">
+                    <Border Classes="badge">
+                      <TextBlock Text="{Binding FormatLabel}" FontSize="10" />
+                    </Border>
+                    <Border Classes="badge">
+                      <TextBlock Text="{Binding KindLabel}" FontSize="10" />
+                    </Border>
+                    <TextBlock Text="★" Foreground="#E0A458" FontSize="12"
+                               IsVisible="{Binding IsFavorite}" />
+                    <TextBlock Text="!" Foreground="#E0A458" FontSize="12" FontWeight="Bold"
+                               IsVisible="{Binding IsProblem}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </DockPanel>
+
+      <!-- Drag to resize the detail pane; its image scales with the width. -->
+      <GridSplitter Grid.Column="2" Width="5" ResizeDirection="Columns" Background="#2A3040"
+                    ToolTip.Tip="Drag to resize the details pane" />
+      </Grid>
+
+    </DockPanel>
+
+    <!-- Full-size screenshot overlay. Covers everything; a click anywhere dismisses it. -->
+    <Border IsVisible="{Binding IsImageZoomed}" Background="#E6000000"
+            PointerPressed="OnZoomOverlayPressed">
+      <DockPanel Margin="24">
+        <TextBlock DockPanel.Dock="Bottom" Classes="label" TextAlignment="Center" Margin="0,12,0,0"
+                   Text="Click anywhere to close" />
+        <Viewbox Stretch="Uniform" StretchDirection="DownOnly">
+          <Image Source="{Binding Selected.FullImage}" />
+        </Viewbox>
+      </DockPanel>
+    </Border>
+
+  </Panel>
+</Window>
