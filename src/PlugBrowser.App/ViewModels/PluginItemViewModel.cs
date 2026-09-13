@@ -181,6 +181,39 @@ public sealed partial class PluginItemViewModel : ObservableObject
     /// <summary>Tags for facet filtering, e.g. <c>["Fx", "Delay"]</c>.</summary>
     public IReadOnlyList<string> Tags => FirstClass?.Tags ?? [];
 
+    /// <summary>The tags that are categories (Delay, Reverb, Synth…), exactly as the Category filter
+    /// lists them.</summary>
+    public IReadOnlyList<string> CategoryNames =>
+        Tags.Where(CategoryTags.IsFacetTag).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+    /// <summary>The clickable tags on this plugin's card: format, type, categories, then vendor.</summary>
+    public IReadOnlyList<CardTag> CardTags => _cardTags ??= BuildCardTags();
+
+    private IReadOnlyList<CardTag>? _cardTags;
+
+    private List<CardTag> BuildCardTags()
+    {
+        var tags = new List<CardTag>
+        {
+            new(CardTagKind.Format, FormatLabel, Format.ToString(), $"Show only {FormatLabel} plugins"),
+
+            // An unprobed plugin has no type yet, and there is no "unclassified" filter to add.
+            Kind == PluginKind.Unknown
+                ? new(CardTagKind.Kind, KindLabel, Kind.ToString(),
+                      "Not loaded yet, so its type is unknown", IsClickable: false)
+                : new(CardTagKind.Kind, KindLabel, Kind.ToString(),
+                      Kind == PluginKind.Instrument ? "Show only instruments" : "Show only effects"),
+        };
+
+        foreach (var category in CategoryNames)
+            tags.Add(new(CardTagKind.Category, category, category, $"Add {category} to the category filter"));
+
+        tags.Add(new(CardTagKind.Vendor, VendorAbbreviation.Abbreviate(_entry.DisplayVendor), Vendor,
+            $"{Vendor} — show only this vendor's plugins"));
+
+        return tags;
+    }
+
     /// <summary>Normalised product name, used to spot the same plugin installed in another format.</summary>
     public string DuplicateKey => _duplicateKey ??= DuplicateAnalyzer.NormalizeName(Name);
 

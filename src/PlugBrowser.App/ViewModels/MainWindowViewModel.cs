@@ -94,10 +94,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private double _rescanProgress;
 
-    /// <summary>Number of plugins shown out of the number known, for the status line.</summary>
-    public string CountSummary => _all.Count == 0
-        ? "No plugins catalogued yet — run a scan."
+    /// <summary>Number of plugins shown out of the number known, for the status line — or, while
+    /// selected plugins are being reloaded, how far through the selection the reload is.</summary>
+    public string CountSummary =>
+        _reloadTotal > 0 ? ReloadCountLabel(_reloadCompleted, _reloadTotal)
+        : _all.Count == 0 ? "No plugins catalogued yet — run a scan."
         : $"{Visible.Count} of {_all.Count} plugins";
+
+    /// <summary>Progress through a reload of selected plugins; zero total when none is running.</summary>
+    private int _reloadCompleted, _reloadTotal;
+
+    /// <summary>
+    /// "2 of 5 selected": the plugin currently being reloaded, counted against the selection.
+    /// </summary>
+    /// <param name="completed">Plugins finished so far; the one in progress is the next.</param>
+    /// <param name="total">Plugins being reloaded.</param>
+    /// <remarks>Clamped because the final progress report arrives with every plugin completed, which
+    /// would otherwise read "6 of 5".</remarks>
+    public static string ReloadCountLabel(int completed, int total) =>
+        $"{Math.Clamp(completed + 1, 1, Math.Max(total, 1))} of {total} selected";
 
     /// <summary>Headline count for the current filtered view.</summary>
     public string ResultCount => Visible.Count == 1 ? "1 plugin" : $"{Visible.Count:N0} plugins";
@@ -234,9 +249,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         var selectedPaths = SelectedItems.Select(i => i.Path).ToList();
 
+        int skippedVst2 = SelectedItems.Count - targets.Count;
+
         _scanCancellation = new CancellationTokenSource();
         IsScanning = true;
         RescanProgress = 0;
+        SetReloadProgress(0, targets.Count);
 
         try
         {
@@ -251,18 +269,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
             var progress = new Progress<ScanStatus>(status =>
             {
                 RescanProgress = (status.Fraction ?? 0) * 100;
-                Status = $"Reloading {status.Completed + 1}/{status.Total}: {status.CurrentItem}";
+                SetReloadProgress(status.Completed, targets.Count);
+                Status = $"Reloading {ReloadCountLabel(status.Completed, targets.Count)}: {status.CurrentItem}";
             });
 
             var summary = await service.RescanAsync(targets, progress, _scanCancellation.Token);
 
+            // Cleared before reloading the catalog, so the counter returns to the gallery totals.
+            SetReloadProgress(0, 0);
             LoadCatalog();
             RestoreSelection(selectedPaths);
-            Status = $"Reloaded {targets.Count} plugins — " +
-                     $"{summary.Captured} screenshots, {summary.Failed} failed.";
+            Status = $"Reloaded {targets.Count} selected plugins — " +
+                     $"{summary.Captured} screenshots, {summary.Failed} failed" +
+                     (skippedVst2 > 0 ? $"; {skippedVst2} VST2 skipped (catalogued from file only)." : ".");
         }
         catch (OperationCanceledException)
         {
+            SetReloadProgress(0, 0);
             LoadCatalog();
             RestoreSelection(selectedPaths);
             Status = "Reload cancelled — anything already recaptured was kept.";
@@ -273,11 +296,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         finally
         {
+            SetReloadProgress(0, 0);
             IsScanning = false;
             RescanProgress = 0;
             _scanCancellation?.Dispose();
             _scanCancellation = null;
         }
+    }
+
+    private void SetReloadProgress(int completed, int total)
+    {
+        _reloadCompleted = completed;
+        _reloadTotal = total;
+        OnPropertyChanged(nameof(CountSummary));
     }
 
     private bool CanRescanSelected() => SelectedItems.Count > 0 && !IsScanning;
@@ -484,7 +515,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             foreach (var tag in item.Tags)
             {
-                if (IsKindTag(tag) || CapabilityTags.Contains(tag))
+                if (!CategoryTags.IsFacetTag(tag))
                     continue;
                 tagCounts[tag] = tagCounts.GetValueOrDefault(tag) + 1;
             }
@@ -508,9 +539,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// Rebuilds the category facets from the tags present in the catalog.
     /// </summary>
     /// <remarks>
-    /// <para>"Fx" and "Instrument" are excluded: they are the effect/instrument split the Type facet
-    /// above already covers, and listing them twice would let a user set two controls into a
-    /// contradiction that silently returns nothing.</para>
+    /// <para>Which tags count is decided by <see cref="CategoryTags.IsFacetTag"/>, shared with the card
+    /// tags so the two always agree.</para>
     /// <para>Selections are carried across a rebuild so a rescan does not silently widen the view.</para>
     /// </remarks>
     private void RebuildCategoryList()
@@ -525,7 +555,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             foreach (var tag in item.Tags)
             {
-                if (IsKindTag(tag) || CapabilityTags.Contains(tag))
+                if (!CategoryTags.IsFacetTag(tag))
                     continue;
                 counts[tag] = counts.GetValueOrDefault(tag) + 1;
             }
@@ -540,28 +570,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
             });
         }
     }
-
-    /// <summary>True for the two tags that duplicate the Type facet.</summary>
-    private static bool IsKindTag(string tag) =>
-        tag.Equals("Fx", StringComparison.OrdinalIgnoreCase) ||
-        tag.Equals("Instrument", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>
-    /// VST3 subcategory values that describe a plugin's processing capabilities rather than what kind of
-    /// plugin it is.
-    /// </summary>
-    /// <remarks>
-    /// The spec puts these in the same <c>|</c>-separated string as the musical categories, so
-    /// "Fx|Delay|OnlyRT" declares an effect, a delay, and a realtime-only constraint all at once. They
-    /// are real and occasionally useful, but in a list meant for choosing "delay" or "reverb" they are
-    /// noise — <c>OnlyRT</c> and <c>NoOfflineProcess</c> each matched nine plugins here with nothing in
-    /// common musically. Channel-layout markers are excluded for the same reason.
-    /// </remarks>
-    private static readonly HashSet<string> CapabilityTags = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "OnlyRT", "OnlyOfflineProcess", "NoOfflineProcess", "OnlyARA", "Distributable",
-        "Mono", "Stereo", "Ambisonics", "Up-Downmix",
-    };
 
     /// <summary>True when anything is narrowing the view, so the Clear button can show itself.</summary>
     public bool HasAnyFilter =>
@@ -612,6 +620,62 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             foreach (var category in Categories)
                 category.IsSelected = false;
+        }
+        finally
+        {
+            _suppressFilters = false;
+        }
+        ApplyFilters();
+    }
+
+    /// <summary>
+    /// Adds the filter behind a clicked card tag to the ones already active.
+    /// </summary>
+    /// <remarks>
+    /// <para>Each tag drives the same control the user would otherwise set by hand, so the filter pane
+    /// always shows why the list looks the way it does: a format or type tag narrows its checkbox pair
+    /// to that one value, a category tag ticks its checkbox alongside any already ticked (categories
+    /// combine as "any of these"), and a vendor tag selects that vendor. Every other filter is left
+    /// exactly as it was.</para>
+    /// <para>Applied with refreshing suppressed, so switching a checkbox pair re-runs the projection once.</para>
+    /// </remarks>
+    [RelayCommand]
+    private void ApplyTagFilter(CardTag? tag)
+    {
+        if (tag is null || !tag.IsClickable)
+            return;
+
+        _suppressFilters = true;
+        try
+        {
+            switch (tag.Kind)
+            {
+                case CardTagKind.Format when Enum.TryParse<PluginFormat>(tag.Value, out var format):
+                    ShowVst3 = format == PluginFormat.Vst3;
+                    ShowVst2 = format == PluginFormat.Vst2;
+                    break;
+
+                case CardTagKind.Kind when Enum.TryParse<PluginKind>(tag.Value, out var kind)
+                                           && kind != PluginKind.Unknown:
+                    ShowEffects = kind == PluginKind.Effect;
+                    ShowInstruments = kind == PluginKind.Instrument;
+                    break;
+
+                case CardTagKind.Category:
+                    var facet = Categories.FirstOrDefault(c =>
+                        c.Name.Equals(tag.Value, StringComparison.OrdinalIgnoreCase));
+                    if (facet is not null)
+                        facet.IsSelected = true;
+                    break;
+
+                case CardTagKind.Vendor:
+                    // The dropdown's own entry, so the ComboBox shows it as selected.
+                    var vendor = Vendors.FirstOrDefault(v =>
+                        v.Equals(tag.Value, StringComparison.OrdinalIgnoreCase));
+                    if (vendor is not null)
+                        SelectedVendor = vendor;
+                    break;
+            }
         }
         finally
         {

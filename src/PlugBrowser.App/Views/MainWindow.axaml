@@ -4,38 +4,102 @@
         x:Class="PlugBrowser.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="PlugBrowser"
+        Icon="/Assets/icon.ico"
         Width="1280" Height="820"
         MinWidth="900" MinHeight="600">
 
+  <Window.Resources>
+    <!-- Container for gallery cards: just the card, with no background of its own in any state. Each
+         card draws its own selection outline, and Fluent's item theme would otherwise paint a solid
+         accent block behind it. A theme of its own rather than style overrides, because the Fluent
+         theme's selected-state setters outrank template-part styles on the container. -->
+    <ControlTheme x:Key="CardItemTheme" TargetType="ListBoxItem">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <ContentPresenter Name="PART_ContentPresenter"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            Content="{TemplateBinding Content}"
+                            ContentTemplate="{TemplateBinding ContentTemplate}" />
+        </ControlTemplate>
+      </Setter>
+    </ControlTheme>
+  </Window.Resources>
+
   <Window.Styles>
-    <Style Selector="TextBlock.label">
-      <Setter Property="Foreground" Value="#8B93A7" />
-      <Setter Property="FontSize" Value="11" />
-    </Style>
     <Style Selector="TextBlock.section">
-      <Setter Property="Foreground" Value="#8B93A7" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Margin" Value="0,14,0,6" />
     </Style>
-    <Style Selector="Border.badge">
-      <Setter Property="Background" Value="#2A3040" />
-      <Setter Property="CornerRadius" Value="3" />
-      <Setter Property="Padding" Value="5,1" />
+
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="6" />
+    </Style>
+    <Style Selector="ListBox#Gallery ListBoxItem:pointerover Border.card">
+      <Setter Property="Background" Value="{DynamicResource CardHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox#Gallery ListBoxItem:selected Border.card">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Card tags: badges that are also buttons. Retemplated to a plain rounded border so they keep the
+         badge look; the accent fill on hover is what says they can be clicked. Not focusable, so Tab
+         and the arrow keys keep moving through the cards rather than stopping on every tag. -->
+    <Style Selector="Button.tag">
+      <Setter Property="Background" Value="{DynamicResource BadgeBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="10" />
+      <!-- Sized so the usual four — format, type, one category, vendor — fit a card on one line. -->
+      <Setter Property="Padding" Value="3,1" />
+      <Setter Property="Margin" Value="0,0,3,3" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Focusable" Value="False" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Template">
+        <ControlTemplate TargetType="Button">
+          <Border Background="{TemplateBinding Background}" CornerRadius="3"
+                  Padding="{TemplateBinding Padding}">
+            <ContentPresenter Content="{TemplateBinding Content}" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="Button.tag:pointerover">
+      <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+      <Setter Property="Foreground" Value="#000000" />
+    </Style>
+    <Style Selector="Button.tag:disabled">
+      <Setter Property="Cursor" Value="Arrow" />
     </Style>
   </Window.Styles>
 
   <Panel>
     <DockPanel>
 
-      <!-- Toolbar -->
-      <Border DockPanel.Dock="Top" Background="#1B1F2A" Padding="12,10" BorderBrush="#2A3040"
-              BorderThickness="0,0,0,1">
-        <Grid ColumnDefinitions="Auto,*,Auto">
-          <TextBlock Grid.Column="0" Text="PlugBrowser" FontSize="16" FontWeight="Bold"
-                     VerticalAlignment="Center" Margin="0,0,20,0" />
+      <!--
+        Caption strip: the toolbar doubles as the title bar (see Win11Chrome). Its background sits on a
+        separate non-hit-testable layer so the empty parts of the strip still drag the window, and the
+        right margin keeps clear of the system caption buttons.
+      -->
+      <Panel DockPanel.Dock="Top" Height="48">
+        <Border Background="{DynamicResource ChromeBrush}" BorderBrush="{DynamicResource LineBrush}"
+                BorderThickness="0,0,0,1" IsHitTestVisible="False" />
 
-          <Panel Grid.Column="1" MaxWidth="520" MinWidth="320" HorizontalAlignment="Left">
+        <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,0,150,0">
+          <!-- App identity, as Windows 11 apps show it at the left of the caption. -->
+          <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                      Margin="0,0,20,0" IsHitTestVisible="False">
+            <Image Source="/Assets/icon-64.png" Width="20" Height="20"
+                   RenderOptions.BitmapInterpolationMode="HighQuality" />
+            <TextBlock Text="PlugBrowser" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+
+          <Panel Grid.Column="1" MaxWidth="520" MinWidth="320" HorizontalAlignment="Left"
+                 VerticalAlignment="Center">
             <TextBox Text="{Binding SearchText}"
                      Watermark="Search name, vendor, category…" />
             <!-- Inside the box rather than beside it, so it reads as part of the field. -->
@@ -46,18 +110,19 @@
                     ToolTip.Tip="Clear the search" />
           </Panel>
 
-          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0">
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" Margin="10,0,0,0"
+                      VerticalAlignment="Center">
             <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}"
                     IsVisible="{Binding HasAnyFilter}"
                     ToolTip.Tip="Reset every filter, including the search box" />
             <Button Content="Scan &amp; Options…" Click="OnOptionsClick" />
           </StackPanel>
         </Grid>
-      </Border>
+      </Panel>
 
       <!-- Status bar -->
-      <Border DockPanel.Dock="Bottom" Background="#1B1F2A" Padding="12,6" BorderBrush="#2A3040"
-              BorderThickness="0,1,0,0">
+      <Border DockPanel.Dock="Bottom" Background="{DynamicResource ChromeBrush}" Padding="12,6"
+              BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0">
         <Grid ColumnDefinitions="*,Auto,Auto">
           <TextBlock Grid.Column="0" Text="{Binding Status}" VerticalAlignment="Center" FontSize="12"
                      TextTrimming="CharacterEllipsis" />
@@ -79,9 +144,8 @@
           <ColumnDefinition Width="340" MinWidth="340" />
         </Grid.ColumnDefinitions>
 
-      <!-- Facets -->
-      <Border Grid.Column="0" Background="#171A23" BorderBrush="#2A3040"
-              BorderThickness="0,0,1,0">
+      <!-- Facets: straight on the Mica, like a Windows 11 navigation pane. -->
+      <Border Grid.Column="0" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,1,0">
         <!-- Spacing lives on the content, not as ScrollViewer padding: padding there shrinks the
              viewport without extending the scroll extent, so the last item was clipped at the bottom. -->
         <ScrollViewer>
@@ -107,7 +171,7 @@
               <Button Grid.Column="1" Content="Clear" Command="{Binding ClearCategoriesCommand}"
                       IsVisible="{Binding HasCategoryFilter}"
                       Background="Transparent" BorderThickness="0" Padding="4,0"
-                      Foreground="#7AA2F7" FontSize="11" />
+                      Foreground="{DynamicResource AccentBrush}" FontSize="11" />
             </Grid>
 
             <ItemsControl ItemsSource="{Binding Categories}">
@@ -128,7 +192,8 @@
       </Border>
 
       <!-- Detail pane -->
-      <Border Grid.Column="3" Background="#171A23" Padding="16">
+      <Border Grid.Column="3" Padding="16" BorderBrush="{DynamicResource LineBrush}"
+              BorderThickness="1,0,0,0">
         <Panel>
           <TextBlock Text="Select a plugin to see its details."
                      Classes="label" TextWrapping="Wrap" TextAlignment="Center"
@@ -182,12 +247,12 @@
               </StackPanel.IsVisible>
 
               <!-- Click opens the capture full size. -->
-              <Border Background="#0F1218" CornerRadius="6" Margin="0,0,0,4" Padding="1"
-                      Cursor="Hand" PointerPressed="OnDetailImagePressed">
+              <Border Background="{DynamicResource ImageBackdropBrush}" CornerRadius="6"
+                      Margin="0,0,0,4" Padding="1" Cursor="Hand" PointerPressed="OnDetailImagePressed">
                 <Panel>
                   <Border Height="150" IsVisible="{Binding !HasImage}">
                     <TextBlock Text="{Binding Initials}" FontSize="46" FontWeight="Bold"
-                               Foreground="#39415A"
+                               Foreground="{DynamicResource PlaceholderBrush}"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                   </Border>
                   <Image Source="{Binding DetailImage}" Stretch="Uniform" IsVisible="{Binding HasImage}" />
@@ -238,11 +303,12 @@
                            TextWrapping="Wrap" Margin="0,4,0,0" />
               </Grid>
 
-              <TextBlock Text="{Binding StateDetail}" FontSize="11" Foreground="#E0A458"
+              <TextBlock Text="{Binding StateDetail}" FontSize="11" Foreground="{DynamicResource WarningBrush}"
                          TextWrapping="Wrap" Margin="0,8,0,0" IsVisible="{Binding IsProblem}" />
 
               <TextBlock Text="LOCATION" Classes="section" />
-              <TextBlock Text="{Binding Path}" FontSize="11" TextWrapping="Wrap" Foreground="#9BA3B7" />
+              <TextBlock Text="{Binding Path}" FontSize="11" TextWrapping="Wrap"
+                         Foreground="{DynamicResource TextSecondaryBrush}" />
 
               <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
                 <Button Content="Reveal in Explorer"
@@ -261,9 +327,9 @@
         </Panel>
       </Border>
 
-      <!-- Gallery -->
-      <DockPanel Grid.Column="1">
-        <Border DockPanel.Dock="Top" Padding="12,8" Background="#12151C">
+      <!-- Gallery, on a slightly raised layer as Windows 11 does for an app's main content. -->
+      <DockPanel Grid.Column="1" Background="{DynamicResource LayerBrush}">
+        <Border DockPanel.Dock="Top" Padding="12,8">
           <Grid ColumnDefinitions="Auto,*">
             <TextBlock Grid.Column="0" Text="{Binding ResultCount}" FontSize="14" FontWeight="SemiBold"
                        VerticalAlignment="Center" />
@@ -277,7 +343,8 @@
                  SelectionMode="Multiple"
                  SelectionChanged="OnGallerySelectionChanged"
                  DoubleTapped="OnGalleryDoubleTapped"
-                 Background="#12151C" Padding="8" Name="Gallery">
+                 Background="Transparent" Padding="8" Name="Gallery" Classes="cards"
+                 ItemContainerTheme="{StaticResource CardItemTheme}">
           <ListBox.ItemsPanel>
             <ItemsPanelTemplate>
               <WrapPanel />
@@ -290,12 +357,13 @@
                 Cards share one width and let height follow the image, so every thumbnail is drawn at the
                 plugin's real proportions instead of being cropped or stretched into a uniform box.
               -->
-              <Border Width="204" Background="#1B1F2A" CornerRadius="6" Margin="4" Padding="10">
+              <Border Classes="card" Width="204" Margin="5" Padding="8">
                 <StackPanel>
-                  <Border Background="#0F1218" CornerRadius="4" ClipToBounds="True">
+                  <Border Background="{DynamicResource ImageBackdropBrush}" CornerRadius="4"
+                          ClipToBounds="True">
                     <Panel Width="184" Height="{Binding ThumbnailHeight}">
                       <TextBlock Text="{Binding Initials}" FontSize="30" FontWeight="Bold"
-                                 Foreground="#39415A"
+                                 Foreground="{DynamicResource PlaceholderBrush}"
                                  HorizontalAlignment="Center" VerticalAlignment="Center"
                                  IsVisible="{Binding !HasImage}" />
                       <Image Source="{Binding Thumbnail}" Stretch="Uniform"
@@ -303,23 +371,38 @@
                     </Panel>
                   </Border>
 
-                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12" Margin="0,8,0,0"
-                             TextTrimming="CharacterEllipsis" MaxLines="1" />
+                  <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                    <TextBlock Grid.Column="0" Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"
+                               TextTrimming="CharacterEllipsis" MaxLines="1" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3" Margin="4,0,0,0">
+                      <TextBlock Text="★" Foreground="{DynamicResource WarningBrush}" FontSize="12"
+                                 IsVisible="{Binding IsFavorite}" ToolTip.Tip="Favourite" />
+                      <TextBlock Text="!" Foreground="{DynamicResource WarningBrush}" FontSize="12"
+                                 FontWeight="Bold" IsVisible="{Binding IsProblem}"
+                                 ToolTip.Tip="{Binding StateLabel}" />
+                    </StackPanel>
+                  </Grid>
                   <TextBlock Text="{Binding Vendor}" Classes="label"
                              TextTrimming="CharacterEllipsis" MaxLines="1" />
 
-                  <StackPanel Orientation="Horizontal" Spacing="4" Margin="0,5,0,0">
-                    <Border Classes="badge">
-                      <TextBlock Text="{Binding FormatLabel}" FontSize="10" />
-                    </Border>
-                    <Border Classes="badge">
-                      <TextBlock Text="{Binding KindLabel}" FontSize="10" />
-                    </Border>
-                    <TextBlock Text="★" Foreground="#E0A458" FontSize="12"
-                               IsVisible="{Binding IsFavorite}" />
-                    <TextBlock Text="!" Foreground="#E0A458" FontSize="12" FontWeight="Bold"
-                               IsVisible="{Binding IsProblem}" />
-                  </StackPanel>
+                  <!-- Format, type, categories and vendor. Clicking one adds its filter to the current
+                       ones, and the filter pane updates to match. Wraps when a plugin has several
+                       categories. -->
+                  <ItemsControl ItemsSource="{Binding CardTags}" Margin="0,6,0,-4">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:CardTag">
+                        <Button Classes="tag" Content="{Binding Label}" IsEnabled="{Binding IsClickable}"
+                                ToolTip.Tip="{Binding ToolTip}" ToolTip.ShowOnDisabled="True"
+                                Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ApplyTagFilterCommand}"
+                                CommandParameter="{Binding}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
                 </StackPanel>
               </Border>
             </DataTemplate>
@@ -327,8 +410,9 @@
         </ListBox>
       </DockPanel>
 
-      <!-- Drag to resize the detail pane; its image scales with the width. -->
-      <GridSplitter Grid.Column="2" Width="5" ResizeDirection="Columns" Background="#2A3040"
+      <!-- Drag to resize the detail pane; its image scales with the width. Transparent so only the
+           pane's hairline shows, as a Windows 11 pane divider does. -->
+      <GridSplitter Grid.Column="2" Width="5" ResizeDirection="Columns" Background="Transparent"
                     ToolTip.Tip="Drag to resize the details pane" />
       </Grid>
 

@@ -7,7 +7,11 @@ namespace PlugBrowser.App.Views;
 
 public partial class DuplicatesWindow : Window
 {
-    public DuplicatesWindow() => AvaloniaXamlLoader.Load(this);
+    public DuplicatesWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        Win11Chrome.Attach(this, titleBarHeight: 32);
+    }
 
     /// <summary>Dims the copy in the format worth keeping, so the removable ones stand out.</summary>
     private void OnLoadingRow(object? sender, DataGridRowEventArgs e)

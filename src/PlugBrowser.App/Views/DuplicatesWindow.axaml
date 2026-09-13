@@ -4,20 +4,12 @@
         x:Class="PlugBrowser.App.Views.DuplicatesWindow"
         x:DataType="vm:DuplicatesViewModel"
         Title="Duplicate Plugins Across Formats"
-        Width="1320" Height="780"
-        MinWidth="820" MinHeight="500"
+        Icon="/Assets/icon.ico"
+        Width="1320" Height="800"
+        MinWidth="820" MinHeight="520"
         WindowStartupLocation="CenterOwner">
 
   <Window.Styles>
-    <Style Selector="TextBlock.label">
-      <Setter Property="Foreground" Value="#8B93A7" />
-      <Setter Property="FontSize" Value="11" />
-    </Style>
-    <Style Selector="TextBlock.section">
-      <Setter Property="Foreground" Value="#8B93A7" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
     <!-- The redundant copies are the point of the view, so the keeper is de-emphasised rather than
          the other way round. -->
     <Style Selector="DataGridRow.preferred">
@@ -25,7 +17,14 @@
     </Style>
   </Window.Styles>
 
-  <DockPanel Margin="16">
+  <DockPanel>
+
+    <!-- Caption row (see Win11Chrome); no background, so all of it drags the window. -->
+    <Panel DockPanel.Dock="Top" Height="32">
+      <TextBlock Text="{Binding $parent[Window].Title}" Classes="caption" Margin="16,0" />
+    </Panel>
+
+  <DockPanel Margin="16,4,16,16">
 
     <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
       <TextBlock Text="Duplicate plugins across formats" FontSize="18" FontWeight="Bold" />
@@ -45,8 +44,8 @@
     </Border>
 
     <!-- Folders worth switching off, which is the action this whole view exists to inform. -->
-    <Border DockPanel.Dock="Bottom" Background="#12151C" CornerRadius="6" Padding="12" Margin="0,12,0,0"
-            IsVisible="{Binding HasDuplicates}">
+    <Border DockPanel.Dock="Bottom" Background="{DynamicResource InsetBrush}" CornerRadius="6"
+            Padding="12" Margin="0,12,0,0" IsVisible="{Binding HasDuplicates}">
       <StackPanel>
         <TextBlock Text="FOLDERS HOLDING THE REDUNDANT COPIES" Classes="section" />
         <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,4,0,6"
@@ -54,7 +53,8 @@
         <ItemsControl ItemsSource="{Binding RedundantFolders}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="x:String">
-              <TextBlock Text="{Binding}" FontSize="11" Foreground="#9BA3B7" Margin="0,1" />
+              <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource TextSecondaryBrush}"
+                         Margin="0,1" />
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
@@ -73,26 +73,31 @@
                 IsChecked="{Binding RedundantOnly}" VerticalAlignment="Center" />
     </Grid>
 
-    <DataGrid ItemsSource="{Binding Rows}" Name="Grid"
-              IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True"
-              GridLinesVisibility="Horizontal" HeadersVisibility="Column"
-              LoadingRow="OnLoadingRow">
-      <DataGrid.Columns>
-        <!-- Widths are set so each header fits its own text; anything wider than the window scrolls
-             horizontally rather than clipping a column to an unreadable stub. -->
-        <DataGridTextColumn Header="Plugin" Binding="{Binding Name}" Width="185" />
-        <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="85" />
-        <DataGridTextColumn Header="Installed as" Binding="{Binding FormatsInGroup}" Width="110" />
-        <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="118" />
-        <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="145" />
-        <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
-        <DataGridTextColumn Header="Arch" Binding="{Binding Architecture}" Width="70" />
-        <DataGridTextColumn Header="MB" Binding="{Binding SizeMb}" Width="70" />
-        <DataGridCheckBoxColumn Header="Shot" Binding="{Binding HasScreenshot}" Width="60" />
-        <DataGridTextColumn Header="Binary location" Binding="{Binding Location}"
-                            Width="*" MinWidth="280" />
-      </DataGrid.Columns>
-    </DataGrid>
+    <Border Background="{DynamicResource InsetBrush}" CornerRadius="6"
+            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" ClipToBounds="True">
+      <DataGrid ItemsSource="{Binding Rows}" Name="Grid" Background="Transparent"
+                IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True"
+                GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                HorizontalGridLinesBrush="{DynamicResource LineBrush}"
+                LoadingRow="OnLoadingRow">
+        <DataGrid.Columns>
+          <!-- Widths are set so each header fits its own text; anything wider than the window scrolls
+               horizontally rather than clipping a column to an unreadable stub. -->
+          <DataGridTextColumn Header="Plugin" Binding="{Binding Name}" Width="185" />
+          <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="85" />
+          <DataGridTextColumn Header="Installed as" Binding="{Binding FormatsInGroup}" Width="110" />
+          <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="118" />
+          <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="145" />
+          <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="90" />
+          <DataGridTextColumn Header="Arch" Binding="{Binding Architecture}" Width="70" />
+          <DataGridTextColumn Header="MB" Binding="{Binding SizeMb}" Width="70" />
+          <DataGridCheckBoxColumn Header="Shot" Binding="{Binding HasScreenshot}" Width="60" />
+          <DataGridTextColumn Header="Binary location" Binding="{Binding Location}"
+                              Width="*" MinWidth="280" />
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
 
+  </DockPanel>
   </DockPanel>
 </Window>

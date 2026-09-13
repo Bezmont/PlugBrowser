@@ -7,7 +7,11 @@ namespace PlugBrowser.App.Views;
 
 public partial class OptionsWindow : Window
 {
-    public OptionsWindow() => AvaloniaXamlLoader.Load(this);
+    public OptionsWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        Win11Chrome.Attach(this, titleBarHeight: 32);
+    }
 
     /// <summary>Picks a folder to add as a scan root.</summary>
     /// <remarks>The picker lives in the view rather than the view model because it needs a parent

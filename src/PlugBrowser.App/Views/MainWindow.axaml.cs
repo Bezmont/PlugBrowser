@@ -1,5 +1,7 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using PlugBrowser.App.ViewModels;
@@ -15,7 +17,11 @@ public partial class MainWindow : Window
     private bool _syncingSelection;
 
     /// <summary>Parameterless constructor for the XAML previewer.</summary>
-    public MainWindow() => AvaloniaXamlLoader.Load(this);
+    public MainWindow()
+    {
+        AvaloniaXamlLoader.Load(this);
+        Win11Chrome.Attach(this, titleBarHeight: 48);
+    }
 
     public MainWindow(CatalogStore store) : this() => _store = store;
 
@@ -126,6 +132,10 @@ public partial class MainWindow : Window
     /// <summary>Double-clicking a card opens its screenshot full size.</summary>
     private void OnGalleryDoubleTapped(object? sender, TappedEventArgs e)
     {
+        // A quick double click on a card tag is two filter clicks, not a request to zoom.
+        if (e.Source is Visual source && source.FindAncestorOfType<Button>(includeSelf: true) is not null)
+            return;
+
         if (DataContext is MainWindowViewModel viewModel)
             viewModel.ZoomImageCommand.Execute(null);
     }

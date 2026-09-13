@@ -2,10 +2,98 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="PlugBrowser.App.App"
              RequestedThemeVariant="Dark">
+
+  <!--
+    Windows 11 dark palette, shared with the owner's other apps. Surfaces are translucent so the Mica
+    backdrop (see Views/Win11Chrome.cs) shows through them instead of being painted over.
+
+    The in-app accent is a fixed Windows blue rather than the system accent: the system accent is
+    reserved for the window border, so it frames the app without colouring its contents.
+  -->
+  <Application.Resources>
+    <SolidColorBrush x:Key="ChromeBrush" Color="#30000000" />
+    <SolidColorBrush x:Key="LayerBrush" Color="#4C3A3A3A" />
+    <SolidColorBrush x:Key="CardBrush" Color="#0DFFFFFF" />
+    <SolidColorBrush x:Key="CardHoverBrush" Color="#18FFFFFF" />
+    <SolidColorBrush x:Key="CardStrokeBrush" Color="#14FFFFFF" />
+    <SolidColorBrush x:Key="InsetBrush" Color="#30000000" />
+    <SolidColorBrush x:Key="ImageBackdropBrush" Color="#60000000" />
+    <SolidColorBrush x:Key="LineBrush" Color="#24FFFFFF" />
+    <SolidColorBrush x:Key="BadgeBrush" Color="#33FFFFFF" />
+    <SolidColorBrush x:Key="ControlBrush" Color="#1FFFFFFF" />
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#33FFFFFF" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F2F2" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#B0B0B0" />
+    <SolidColorBrush x:Key="PlaceholderBrush" Color="#40FFFFFF" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#4CC2FF" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#E0A458" />
+
+    <!-- Windows 11 puts dark text and glyphs on the light dark-theme accent; Fluent's defaults are white,
+         which all but disappears against #4CC2FF. -->
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundChecked" Color="#000000" />
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPointerOver" Color="#000000" />
+    <SolidColorBrush x:Key="CheckBoxCheckGlyphForegroundCheckedPressed" Color="#000000" />
+    <SolidColorBrush x:Key="AccentButtonForeground" Color="#000000" />
+    <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#000000" />
+    <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#000000" />
+  </Application.Resources>
+
   <Application.Styles>
-    <FluentTheme />
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <!-- Pins the accent instead of following the system one; see the note above. -->
+        <ColorPaletteResources x:Key="Dark" Accent="#FF4CC2FF" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+
     <!-- DataGrid ships its theme separately from the Fluent theme; without this the duplicates
          grid renders as an unstyled, invisible control. -->
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
+
+    <!-- Overlay scrollbars widen to full size on hover. Fluent waits half a second first, which
+         reads as the bar ignoring the pointer; 50 ms still filters out a cursor merely passing over. -->
+    <Style Selector="ScrollBar">
+      <Setter Property="ShowDelay" Value="0:0:0.05" />
+    </Style>
+
+    <!-- Text and badge styles shared by every window. -->
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.badge">
+      <Setter Property="Background" Value="{DynamicResource BadgeBrush}" />
+      <Setter Property="CornerRadius" Value="3" />
+      <Setter Property="Padding" Value="5,1" />
+    </Style>
+
+    <!-- List selection as a quiet fill, the Windows 11 way, instead of Fluent's solid accent block.
+         Lists of cards (class "cards") draw their own selection outline on the card instead. -->
+    <Style Selector="ListBox:not(.cards) ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+    </Style>
+    <Style Selector="ListBox:not(.cards) ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+    </Style>
+    <Style Selector="ListBox:not(.cards) ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox:not(.cards) ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+    </Style>
+    <Style Selector="ListBox:not(.cards) ListBoxItem:selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ControlHoverBrush}" />
+    </Style>
   </Application.Styles>
 </Application>

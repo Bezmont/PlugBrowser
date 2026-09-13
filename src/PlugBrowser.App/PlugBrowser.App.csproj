@@ -5,7 +5,19 @@
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- The exe's own icon, which Explorer and every shortcut to it display. Regenerate with
+         tools\make-icon.ps1 after changing icon.png. -->
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Window icons and the caption-bar image, loaded at run time through avares:// URIs. -->
+    <AvaloniaResource Include="Assets\**" />
+
+    <!-- The splash artwork stays where it was made, at the repository root, and is embedded under
+         Assets like the rest. -->
+    <AvaloniaResource Include="..\..\SplashScreen.png" Link="Assets\splash.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.2.3" />
