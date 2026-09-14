@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # NetPlugHost is a submodule, and it in turn pins the Steinberg VST3 SDK. The host compiles only
       # three of the SDK's own submodules, so those are all that is fetched - the SDK's GUI library,
@@ -35,7 +35,7 @@ jobs:
           git -C external/NetPlugHost/external/vst3sdk submodule update --init --depth 1 base pluginterfaces public.sdk
 
       - name: Set up .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 9.0.x
 
@@ -56,14 +56,14 @@ jobs:
           "zip=$zip" >> $env:GITHUB_OUTPUT
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: PlugBrowser-win-x64
           path: ${{ steps.package.outputs.zip }}
 
       - name: Publish release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ${{ steps.package.outputs.zip }}
           generate_release_notes: true
