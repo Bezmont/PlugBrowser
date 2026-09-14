@@ -9,4 +9,15 @@
          orphans the exe under win-x64\ (learned in StreamRecorder). -->
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
+
+  <!--
+    Where NetPlugHost lives. The git submodule at external/NetPlugHost is the default: it pins the exact
+    NetPlugHost commit this code was built against, and it is what a fresh clone and the GitHub build
+    use. A NetPlugHost checkout beside this repository is the fallback, for working on both at once.
+    Override either with -p:NetPlugHostDir=<path>.
+  -->
+  <PropertyGroup>
+    <NetPlugHostDir Condition="'$(NetPlugHostDir)' == '' and Exists('$(MSBuildThisFileDirectory)external\NetPlugHost\managed\NetPlugHost\NetPlugHost.csproj')">$(MSBuildThisFileDirectory)external\NetPlugHost\</NetPlugHostDir>
+    <NetPlugHostDir Condition="'$(NetPlugHostDir)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\NetPlugHost\'))</NetPlugHostDir>
+  </PropertyGroup>
 </Project>

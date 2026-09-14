@@ -1,0 +1,3 @@
+[submodule "external/NetPlugHost"]
+	path = external/NetPlugHost
+	url = https://github.com/Bezmont/NetPlugHost.git

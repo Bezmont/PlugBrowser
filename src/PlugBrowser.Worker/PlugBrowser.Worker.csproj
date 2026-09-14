@@ -18,11 +18,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PlugBrowser.Core\PlugBrowser.Core.csproj" />
-    <ProjectReference Include="..\..\..\NetPlugHost\managed\NetPlugHost\NetPlugHost.csproj" />
+    <!-- NetPlugHostDir comes from Directory.Build.props: the submodule, or a checkout beside the repo. -->
+    <ProjectReference Include="$(NetPlugHostDir)managed\NetPlugHost\NetPlugHost.csproj" />
   </ItemGroup>
 
   <!-- A ProjectReference does not carry loose native files, so the native half must be copied
        explicitly beside this exe. Same mechanism StreamRecorder uses. -->
-  <Import Project="..\..\..\NetPlugHost\NetPlugHost.Native.targets" />
+  <Import Project="$(NetPlugHostDir)NetPlugHost.Native.targets" />
 
 </Project>

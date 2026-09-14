@@ -7,8 +7,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # The worker talks to plug-ins through NetPlugHost's flat C ABI rather than the VST3 SDK directly, so
 # all the hosting logic stays in one place and this stays a thin shell around windowing and capture.
 # That also means no SDK headers and no submodule are needed here.
-set(NETPLUGHOST_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../NetPlugHost" CACHE PATH
-    "Root of the NetPlugHost repository")
+#
+# Default: the git submodule at external/NetPlugHost, falling back to a NetPlugHost checkout beside this
+# repository (for working on both at once). The same order as NetPlugHostDir in Directory.Build.props.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../external/NetPlugHost/native/include/vst3_host_c.h")
+    set(_netplughost_default "${CMAKE_CURRENT_SOURCE_DIR}/../external/NetPlugHost")
+else()
+    set(_netplughost_default "${CMAKE_CURRENT_SOURCE_DIR}/../../NetPlugHost")
+endif()
+set(NETPLUGHOST_DIR "${_netplughost_default}" CACHE PATH "Root of the NetPlugHost repository")
 
 get_filename_component(NETPLUGHOST_DIR "${NETPLUGHOST_DIR}" ABSOLUTE)
 

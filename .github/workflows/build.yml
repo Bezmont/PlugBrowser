@@ -1,0 +1,70 @@
+# Builds and tests every push and pull request. Pushing a version tag (v1.2.3) also packages the app
+# and publishes it as a GitHub Release, with the zip as the download.
+#
+#   git tag v1.0.0
+#   git push origin v1.0.0
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed only to create the release on a tag push
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # NetPlugHost is a submodule, and it in turn pins the Steinberg VST3 SDK. The host compiles only
+      # three of the SDK's own submodules, so those are all that is fetched - the SDK's GUI library,
+      # docs and tutorials are most of its size and are never used here.
+      - name: Fetch NetPlugHost and the VST3 SDK parts it compiles
+        shell: pwsh
+        run: |
+          git submodule update --init external/NetPlugHost
+          git -C external/NetPlugHost submodule update --init external/vst3sdk
+          git -C external/NetPlugHost/external/vst3sdk submodule update --init --depth 1 base pluginterfaces public.sdk
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build native parts (NetPlugHost and the native worker)
+        shell: pwsh
+        run: ./build-native.ps1 -Configuration Release -RebuildNetPlugHost
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test PlugBrowser.sln -c Release -nologo
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { "0.0.0-ci.${{ github.run_number }}" }
+          $zip = ./publish.ps1 -Version $version -SkipNative | Select-Object -Last 1
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlugBrowser-win-x64
+          path: ${{ steps.package.outputs.zip }}
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.zip }}
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

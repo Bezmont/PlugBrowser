@@ -1,0 +1,6 @@
+<!--
+  Deliberately empty. MSBuild applies the first Directory.Build.props it finds walking up from a
+  project, so without this file the submodules under external/ would inherit PlugBrowser's settings.
+  This keeps NetPlugHost building exactly as it does in its own repository.
+-->
+<Project />

@@ -3,6 +3,16 @@
 A browsable, searchable catalog of the audio plugins installed on this machine — metadata, and
 eventually a picture of each plugin's GUI.
 
+## Download
+
+Get the latest `PlugBrowser-<version>-win-x64.zip` from the
+[Releases page](https://github.com/Bezmont/PlugBrowser/releases), unzip it anywhere, and run
+`PlugBrowser.App.exe`. Windows 10 or 11, 64-bit. Nothing else needs installing: .NET and the C++
+runtime are included.
+
+The download is not code-signed yet, so Windows SmartScreen may warn about an unrecognized app the
+first time it runs; choose **More info → Run anyway**.
+
 ## Status
 
 **Discovery, catalog, and browser UI are complete.** Scanning finds 418 plugins on the development
@@ -103,17 +113,47 @@ native/                  PlugBrowser.NativeWorker - the C++ loader/capture worke
 src/PlugBrowser.Worker/  the managed worker, used as a fallback
 src/PlugBrowser.App/     Avalonia 11 browser UI
 tests/PlugBrowser.Tests/ xUnit suite
+external/NetPlugHost/    the VST3 host (git submodule)
+tools/                   make-icon.ps1, which regenerates the app icon from icon.png
 ```
 
-### Building the native worker
+## Building from source
+
+Needs the .NET 9 SDK and Visual Studio 2022 (or Build Tools) with the **Desktop development with C++**
+workload, which brings MSVC and CMake.
 
 ```powershell
-.uild-native.ps1          # builds NetPlugHost too if needed
-dotnet build PlugBrowser.sln  # copies the worker next to the app
+git clone --recursive https://github.com/Bezmont/PlugBrowser.git
+cd PlugBrowser
+.\build-native.ps1              # NetPlugHost's native DLL and the native worker
+dotnet build PlugBrowser.sln    # the app, with both workers copied next to it
+dotnet test                     # the test suite
+.\publish.ps1 -Version 1.0.0    # the release zip, under artifacts\
 ```
 
-Needs Visual Studio 2022 (or Build Tools) with the C++ workload. Everything works without it — the app
-falls back to the managed worker and reports the protected plugins as failures.
+[NetPlugHost](https://github.com/Bezmont/NetPlugHost), the VST3 host, is a git submodule at
+`external/NetPlugHost`, and it pins the Steinberg VST3 SDK in turn, hence `--recursive`. Already cloned
+without it? `git submodule update --init --recursive`. To build against a NetPlugHost checkout of your
+own instead, pass `-NetPlugHost <path>` to `build-native.ps1` and `-p:NetPlugHostDir=<path>\` to
+`dotnet build`.
+
+Without the C++ workload the app still builds and catalogs plugins from their files, but cannot load
+them or take screenshots, since the VST3 host itself is native code.
+
+Both native binaries link the C++ runtime statically, so the release runs on machines without the
+Visual C++ Redistributable.
+
+### Releases
+
+`.github/workflows/build.yml` builds and tests every push. Pushing a version tag also packages the app
+and publishes a GitHub Release with the zip attached:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+A tag with a suffix, such as `v1.1.0-beta.1`, is published as a pre-release.
 
 ## How capture works
 
@@ -195,7 +235,7 @@ the plugin's true proportions.
 ## Running
 
 ```powershell
-dotnet test                                  # 37 tests
+dotnet test                                  # the test suite
 dotnet run --project src/PlugBrowser.App     # the browser
 ```
 
@@ -218,15 +258,12 @@ No plugin is loaded. Everything shown today comes from the filesystem:
   would be the ideal plugin image — but zero plugins on this machine ship one, so it is a bonus path,
   not a foundation.
 
-## The C++ toolchain is optional
+## Notes on the VST3 host
 
-The prebuilt `Vst3HostNative.dll` in NetPlugHost already exports everything capture needs, so **no
-compiler is required** to load plugins or take screenshots.
-
-A rebuild (VS 2022 Build Tools with *Desktop development with C++*, plus CMake) is only needed for the
-ABI v2 additions — chiefly exposing each class's **CID**, so plugins can be addressed by identity
-instead of by factory index. Index-based addressing silently re-points cached data at the wrong plugin
-when a vendor ships an update that reorders classes. Worth fixing, but not blocking.
+Plugins are addressed by bundle path and factory index. Exposing each class's **CID** through NetPlugHost
+would let them be addressed by identity instead: index-based addressing can re-point cached data at the
+wrong plugin when a vendor ships an update that reorders a bundle's classes. Worth doing, but not
+blocking, since nearly every bundle exposes exactly one class.
 
 ### Instruments are *not* invisible
 
@@ -239,17 +276,19 @@ screenshot today.
 
 ## Related repositories
 
-PlugBrowser depends on **`D:\git\NetPlugHost`**, a C++ wrapper around the Steinberg
-VST3 SDK with a C# P/Invoke layer. It already loads modules, instantiates plugins, and opens plugin
-editors into a host-supplied HWND — which is the hard half of screenshot capture.
-
-NetPlugHost is extended **additively**: its existing exports keep their exact v1 semantics because
-`D:\git\StreamRecorder` depends on them. New exports sit alongside the old ones rather than
-replacing them.
+- **[NetPlugHost](https://github.com/Bezmont/NetPlugHost)** is the VST3 host PlugBrowser loads plugins
+  through: a C++ wrapper around the Steinberg VST3 SDK with a C# P/Invoke layer. It loads modules,
+  instantiates plugins, and opens their editors into a host-supplied window, which is the hard half of
+  screenshot capture. It is included here as a submodule.
+- **StreamRecorder** uses the same host, which is why NetPlugHost is only ever extended **additively**:
+  its existing exports keep their exact meaning, and new ones sit alongside them.
 
 ## Licensing
 
-NetPlugHost is GPLv3 because it links the Steinberg VST3 SDK. Linking it makes PlugBrowser GPLv3 too.
+**GPLv3**; see [`LICENSE`](LICENSE). NetPlugHost is GPLv3 because it links the Steinberg VST3 SDK under
+that SDK's GPLv3 option, and linking NetPlugHost makes PlugBrowser GPLv3 too.
+
+VST is a registered trademark of Steinberg Media Technologies GmbH.
 
 ## VST2
 

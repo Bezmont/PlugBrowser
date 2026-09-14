@@ -8,6 +8,13 @@
     <!-- The exe's own icon, which Explorer and every shortcut to it display. Regenerate with
          tools\make-icon.ps1 after changing icon.png. -->
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+
+    <Product>PlugBrowser</Product>
+    <Description>Browse, search and preview the audio plugins installed on this machine.</Description>
+    <Copyright>Licensed under the GNU GPL v3</Copyright>
+
+    <!-- Where build-native.ps1 leaves the native worker, which CMake builds rather than MSBuild. -->
+    <NativeWorkerDir>$(MSBuildThisFileDirectory)..\..\native\build\bin\</NativeWorkerDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,8 +42,12 @@
     <!-- Built before us, but never referenced as an assembly: the worker runs as a separate process
          precisely so its crashes cannot reach this one. SkipGetTargetFrameworkProperties suppresses the
          TFM compatibility check, which would otherwise reject net9.0-windows from this net9.0 project
-         even though no assembly reference is being made. -->
-    <ProjectReference Include="..\PlugBrowser.Worker\PlugBrowser.Worker.csproj" ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true" />
+         even though no assembly reference is being made. RuntimeIdentifier and SelfContained are kept
+         from flowing into it, so publishing this app for win-x64 does not move the worker's output
+         into a win-x64\ subfolder where CopyWorker would no longer find it. -->
+    <ProjectReference Include="..\PlugBrowser.Worker\PlugBrowser.Worker.csproj"
+                      ReferenceOutputAssembly="false" SkipGetTargetFrameworkProperties="true"
+                      GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
   </ItemGroup>
 
   <!--
@@ -49,7 +60,6 @@
   <Target Name="CopyWorker" AfterTargets="Build">
     <PropertyGroup>
       <WorkerOutDir>..\PlugBrowser.Worker\bin\$(Configuration)\net9.0-windows\</WorkerOutDir>
-      <NativeWorkerDir>..\..\native\build\bin\</NativeWorkerDir>
     </PropertyGroup>
     <ItemGroup>
       <WorkerFiles Include="$(WorkerOutDir)PlugBrowser.Worker.*" />
@@ -58,13 +68,40 @@
       <WorkerFiles Include="$(WorkerOutDir)System.Drawing.Common.dll" />
       <WorkerFiles Include="$(WorkerOutDir)System.Private.Windows.Core.dll" />
 
-      <!-- The native worker is built by CMake, not MSBuild, so it is copied when present and
-           simply skipped otherwise; the app falls back to the managed worker in that case. -->
+      <!-- The native worker is built by CMake, not MSBuild; the app falls back to the managed
+           worker when it is absent. -->
       <WorkerFiles Include="$(NativeWorkerDir)PlugBrowser.NativeWorker.exe" />
       <WorkerFiles Include="$(NativeWorkerDir)Vst3HostNative.dll" />
 
+      <!-- Anything not built is skipped rather than failing the build: an item listed by name is
+           created whether or not the file exists, and Copy would then error on it. -->
+      <WorkerFiles Remove="@(WorkerFiles)" Condition="!Exists('%(FullPath)')" />
     </ItemGroup>
     <Copy SourceFiles="@(WorkerFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" Condition="'@(WorkerFiles)' != ''" />
+  </Target>
+
+  <!--
+    Release packaging (see publish.ps1). The download carries the native worker only. It loads every
+    plugin the managed worker can plus the copy-protected ones that one cannot, and it needs no .NET
+    runtime — whereas the managed worker is framework-dependent and would fail, beside a self-contained
+    app, on any machine without .NET 9 installed. So a release without the native worker is refused.
+  -->
+  <Target Name="PublishNativeWorker" AfterTargets="Publish">
+    <Error Condition="!Exists('$(NativeWorkerDir)PlugBrowser.NativeWorker.exe')"
+           Text="The native worker has not been built, and a release without it could not load any plugin. Run build-native.ps1 (publish.ps1 does this for you) first." />
+    <ItemGroup>
+      <NativeWorkerFiles Include="$(NativeWorkerDir)PlugBrowser.NativeWorker.exe" />
+      <NativeWorkerFiles Include="$(NativeWorkerDir)Vst3HostNative.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeWorkerFiles)" DestinationFolder="$(PublishDir)" />
+
+    <!-- An app project that references another app project gets that app's files published beside it,
+         reference or no. Here that is the managed worker without NetPlugHost.dll, so it could not run
+         anyway; removed so the download carries nothing that does not work. -->
+    <ItemGroup>
+      <PublishedManagedWorker Include="$(PublishDir)PlugBrowser.Worker.*" />
+    </ItemGroup>
+    <Delete Files="@(PublishedManagedWorker)" />
   </Target>
 
 </Project>
