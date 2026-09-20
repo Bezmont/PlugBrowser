@@ -37,13 +37,13 @@ public partial class OptionsWindow : Window
 
     private void OnCloseClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
 
-    /// <summary>Opens the cross-format duplicates grid.</summary>
-    private async void OnDuplicatesClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    /// <summary>Opens the grid of every detected plugin.</summary>
+    private async void OnPluginListClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
         if (DataContext is not OptionsViewModel viewModel)
             return;
 
-        var window = new DuplicatesWindow { DataContext = viewModel.CreateDuplicatesView() };
+        var window = new PluginListWindow { DataContext = viewModel.CreatePluginListView() };
         await window.ShowDialog(this);
     }
 }

@@ -74,6 +74,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     private bool _uniqueOnly;
 
+    /// <summary>The opposite of <see cref="UniqueOnly"/>: only plugins installed in more than one format.</summary>
+    [ObservableProperty]
+    private bool _redundantOnly;
+
     /// <summary>Normalised names installed in more than one format, rebuilt whenever the catalog is.</summary>
     private IReadOnlySet<string> _crossFormatKeys = new HashSet<string>();
 
@@ -123,7 +127,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     // Counts for the fixed facets, each computed with its own group's selections excluded.
     [ObservableProperty] private int _vst3Count;
     [ObservableProperty] private int _uniqueCount;
-    [ObservableProperty] private int _duplicateCount;
+    [ObservableProperty] private int _redundantCount;
     [ObservableProperty] private int _vst2Count;
     [ObservableProperty] private int _effectCount;
     [ObservableProperty] private int _instrumentCount;
@@ -133,6 +137,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public string Vst3Label => $"VST3 ({Vst3Count})";
     public string UniqueLabel => $"Unique only ({UniqueCount})";
+    public string RedundantLabel => $"Redundant only ({RedundantCount})";
     public string Vst2Label => $"VST2 ({Vst2Count})";
     public string EffectsLabel => $"Effects ({EffectCount})";
     public string InstrumentsLabel => $"Instruments ({InstrumentCount})";
@@ -142,6 +147,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     partial void OnVst3CountChanged(int value) => OnPropertyChanged(nameof(Vst3Label));
     partial void OnUniqueCountChanged(int value) => OnPropertyChanged(nameof(UniqueLabel));
+    partial void OnRedundantCountChanged(int value) => OnPropertyChanged(nameof(RedundantLabel));
     partial void OnVst2CountChanged(int value) => OnPropertyChanged(nameof(Vst2Label));
     partial void OnEffectCountChanged(int value) => OnPropertyChanged(nameof(EffectsLabel));
     partial void OnInstrumentCountChanged(int value) => OnPropertyChanged(nameof(InstrumentsLabel));
@@ -348,7 +354,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
     partial void OnFavoritesOnlyChanged(bool value) => ApplyFilters();
     partial void OnWithImagesOnlyChanged(bool value) => ApplyFilters();
     partial void OnProblemsOnlyChanged(bool value) => ApplyFilters();
-    partial void OnUniqueOnlyChanged(bool value) => ApplyFilters();
+
+    // Unique and redundant are opposites, so both on would always show nothing. Turning one on turns the
+    // other off; the second assignment re-applies the filters, so the first need not.
+    partial void OnUniqueOnlyChanged(bool value)
+    {
+        if (value && RedundantOnly)
+            RedundantOnly = false;
+        else
+            ApplyFilters();
+    }
+
+    partial void OnRedundantOnlyChanged(bool value)
+    {
+        if (value && UniqueOnly)
+            UniqueOnly = false;
+        else
+            ApplyFilters();
+    }
 
     /// <summary>Loads the catalog from the database into the list. Cheap — no plugin is touched.</summary>
     public void LoadCatalog()
@@ -528,7 +551,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Vst3Count = forFormat.Count(i => i.Format == PluginFormat.Vst3);
         Vst2Count = forFormat.Count(i => i.Format == PluginFormat.Vst2);
         UniqueCount = forFormat.Count(i => !_crossFormatKeys.Contains(i.DuplicateKey));
-        DuplicateCount = _all.Count(i => _crossFormatKeys.Contains(i.DuplicateKey));
+        RedundantCount = forFormat.Count(i => _crossFormatKeys.Contains(i.DuplicateKey));
         EffectCount = forKind.Count(i => i.Kind == PluginKind.Effect);
         InstrumentCount = forKind.Count(i => i.Kind == PluginKind.Instrument);
         FavoriteCount = forOther.Count(i => i.IsFavorite);
@@ -575,7 +598,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     /// <summary>True when anything is narrowing the view, so the Clear button can show itself.</summary>
     public bool HasAnyFilter =>
         SearchText.Length > 0 || !ShowVst3 || !ShowVst2 || !ShowEffects || !ShowInstruments ||
-        FavoritesOnly || WithImagesOnly || ProblemsOnly || UniqueOnly ||
+        FavoritesOnly || WithImagesOnly || ProblemsOnly || UniqueOnly || RedundantOnly ||
         !SelectedVendor.Equals(AnyVendor, StringComparison.Ordinal) || HasCategoryFilter;
 
     /// <summary>Resets every filter, including the search box, back to showing the whole catalog.</summary>
@@ -596,6 +619,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             WithImagesOnly = false;
             ProblemsOnly = false;
             UniqueOnly = false;
+            RedundantOnly = false;
             SelectedVendor = AnyVendor;
 
             foreach (var category in Categories)
@@ -750,6 +774,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             if (item.Format == PluginFormat.Vst3 && !ShowVst3) return false;
             if (item.Format == PluginFormat.Vst2 && !ShowVst2) return false;
             if (UniqueOnly && _crossFormatKeys.Contains(item.DuplicateKey)) return false;
+            if (RedundantOnly && !_crossFormatKeys.Contains(item.DuplicateKey)) return false;
         }
 
         if (ignore != FacetGroup.Kind)

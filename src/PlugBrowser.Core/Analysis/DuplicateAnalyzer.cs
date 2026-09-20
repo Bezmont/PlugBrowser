@@ -3,34 +3,14 @@ using PlugBrowser.Core.Model;
 
 namespace PlugBrowser.Core.Analysis;
 
-/// <summary>One plugin available in more than one format.</summary>
-/// <param name="Name">Display name of the best entry in the group.</param>
-/// <param name="Key">Normalised key the entries were matched on.</param>
-/// <param name="Entries">Every catalogued copy, newest format first.</param>
-public sealed record DuplicateGroup(string Name, string Key, IReadOnlyList<PluginEntry> Entries)
-{
-    /// <summary>Formats this plugin is installed in.</summary>
-    public IReadOnlyList<PluginFormat> Formats =>
-        [.. Entries.Select(e => e.Format).Distinct().Order()];
-
-    /// <summary>Combined size of every copy, for the "what would I reclaim?" column.</summary>
-    public long TotalBytes => Entries.Sum(e => e.FileSize);
-
-    /// <summary>Size of the copies that are not the preferred format.</summary>
-    /// <remarks>What removing the redundant format would actually save, which is the number a user
-    /// deciding whether to switch off their VST2 folders wants to see.</remarks>
-    public long RedundantBytes => Entries.Where(e => e.Format != PluginFormat.Vst3).Sum(e => e.FileSize);
-}
-
 /// <summary>
 /// Finds plugins installed in more than one format — nearly always a VST2 and a VST3 build of the same
 /// product, shipped by one installer.
 /// </summary>
 /// <remarks>
 /// Worth surfacing because the duplicates are invisible individually but obvious in aggregate: on the
-/// machine this was developed against they account for a large share of the catalog, and every one is a
-/// second copy of a plugin the user already has in a better format. Seeing them listed is what makes
-/// "switch off the VST2 folders" an informed decision rather than a guess.
+/// machine this was developed against they account for a large share of the catalog. The main gallery's
+/// "unique only" facet and the plugin list's "installed as" column are both built on it.
 /// </remarks>
 public static class DuplicateAnalyzer
 {
@@ -78,29 +58,6 @@ public static class DuplicateAnalyzer
         "_x64", "_x86", "-x64", "-x86", " x64", " x86", " ×64", " ×86",
         "64bit", "32bit", "64 bit", "32 bit",
     ];
-
-    /// <summary>Groups the catalog by product and returns those present in more than one format.</summary>
-    public static IReadOnlyList<DuplicateGroup> FindCrossFormatDuplicates(IEnumerable<PluginEntry> entries)
-    {
-        var groups = new List<DuplicateGroup>();
-
-        foreach (var group in GroupByProduct(entries))
-        {
-            // More than one *format*, not merely more than one file: two VST3 copies in different
-            // folders are a different problem and not what this view is about.
-            if (group.Value.Select(e => e.Format).Distinct().Count() < 2)
-                continue;
-
-            var ordered = group.Value
-                .OrderBy(e => e.Format == PluginFormat.Vst3 ? 0 : 1)
-                .ThenBy(e => e.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            groups.Add(new DuplicateGroup(ordered[0].DisplayName, group.Key, ordered));
-        }
-
-        return [.. groups.OrderBy(g => g.Name, StringComparer.OrdinalIgnoreCase)];
-    }
 
     /// <summary>
     /// Keys of products installed in more than one format, for the "unique only" filter.

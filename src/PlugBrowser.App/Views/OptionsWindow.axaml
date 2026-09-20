@@ -83,11 +83,11 @@
         <Border Background="{DynamicResource InsetBrush}" CornerRadius="4" Padding="10">
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel Grid.Column="0" Margin="0,0,12,0">
-              <TextBlock Text="DUPLICATES ACROSS FORMATS" Classes="section" />
-              <TextBlock Text="{Binding DuplicateSummary}" FontSize="12" TextWrapping="Wrap"
+              <TextBlock Text="ALL DETECTED PLUGINS" Classes="section" />
+              <TextBlock Text="{Binding PluginListSummary}" FontSize="12" TextWrapping="Wrap"
                          Margin="0,4,0,0" />
             </StackPanel>
-            <Button Grid.Column="1" Content="Review duplicates…" Click="OnDuplicatesClick"
+            <Button Grid.Column="1" Content="View all plugins…" Click="OnPluginListClick"
                     VerticalAlignment="Center" />
           </Grid>
         </Border>

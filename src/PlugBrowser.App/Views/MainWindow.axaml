@@ -154,7 +154,9 @@
             <CheckBox Content="{Binding Vst3Label}" IsChecked="{Binding ShowVst3}" />
             <CheckBox Content="{Binding Vst2Label}" IsChecked="{Binding ShowVst2}" />
             <CheckBox Content="{Binding UniqueLabel}" IsChecked="{Binding UniqueOnly}"
-                      ToolTip.Tip="Hide plugins that are also installed in another format" />
+                      ToolTip.Tip="Show only plugins installed in a single format. Many installers put both a VST3 and a VST2 copy of the same plugin on disk; with this on, a plugin that has both is hidden entirely — so what remains are plugins you have as VST3 only or as VST2 only. The count is how many such plugins there are." />
+            <CheckBox Content="{Binding RedundantLabel}" IsChecked="{Binding RedundantOnly}"
+                      ToolTip.Tip="The opposite of Unique only: show only plugins installed in both formats, VST3 and VST2. Both copies of each are listed, so you can see what you have twice. The count is how many files that is." />
 
             <TextBlock Text="TYPE" Classes="section" />
             <CheckBox Content="{Binding EffectsLabel}" IsChecked="{Binding ShowEffects}" />

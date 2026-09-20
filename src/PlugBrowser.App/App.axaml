@@ -46,8 +46,8 @@
       </FluentTheme.Palettes>
     </FluentTheme>
 
-    <!-- DataGrid ships its theme separately from the Fluent theme; without this the duplicates
-         grid renders as an unstyled, invisible control. -->
+    <!-- DataGrid ships its theme separately from the Fluent theme; without this the plugin
+         list grid renders as an unstyled, invisible control. -->
     <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml" />
 
     <!-- Overlay scrollbars widen to full size on hover. Fluent waits half a second first, which

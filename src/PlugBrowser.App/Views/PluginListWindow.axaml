@@ -1,0 +1,142 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PlugBrowser.App.ViewModels"
+        x:Class="PlugBrowser.App.Views.PluginListWindow"
+        x:DataType="vm:PluginListViewModel"
+        Title="All Detected Plugins"
+        Icon="/Assets/icon.ico"
+        Width="1320" Height="800"
+        MinWidth="820" MinHeight="520"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="ComboBox.columnFilter">
+      <Setter Property="MinWidth" Value="130" />
+      <Setter Property="Margin" Value="0,0,8,8" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel>
+
+    <!-- Caption row (see Win11Chrome); no background, so all of it drags the window. -->
+    <Panel DockPanel.Dock="Top" Height="32">
+      <TextBlock Text="{Binding $parent[Window].Title}" Classes="caption" Margin="16,0" />
+    </Panel>
+
+  <DockPanel Margin="16,4,16,16">
+
+    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+      <TextBlock Text="All detected plugins" FontSize="18" FontWeight="Bold" />
+      <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="12" />
+      <TextBlock Classes="label" TextWrapping="Wrap" Margin="0,4,0,0"
+                 Text="One row per installed file. Click a column header to sort; narrow the list with the search and the column filters below." />
+    </StackPanel>
+
+    <Border DockPanel.Dock="Bottom" Margin="0,12,0,0">
+      <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+          <TextBlock Text="{Binding RowCountLabel}" Classes="label" />
+          <TextBlock Text="{Binding ExportStatus}" Classes="label" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="Copy as spreadsheet" Click="OnCopyClick" Margin="0,0,8,0"
+                ToolTip.Tip="Copies the rows shown, in the order shown, as tab-separated text you can paste into Excel or Sheets" />
+        <Button Grid.Column="2" Content="Export CSV…" Click="OnExportCsvClick" Margin="0,0,8,0"
+                ToolTip.Tip="Saves the rows shown, in the order shown, to a .csv file" />
+        <Button Grid.Column="3" Content="Close" Click="OnCloseClick" MinWidth="90" />
+      </Grid>
+    </Border>
+
+    <!-- Search over every text column, then one drop-down per column with a fixed set of values. -->
+    <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,4" Orientation="Horizontal">
+      <Panel Width="320" Margin="0,0,8,8">
+        <TextBox Text="{Binding SearchText}" Watermark="Filter by name, vendor, version or location…" />
+        <Button Content="✕" Command="{Binding ClearSearchCommand}"
+                IsVisible="{Binding SearchText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0"
+                Background="Transparent" BorderThickness="0" Padding="6,2" FontSize="12" />
+      </Panel>
+      <ComboBox Classes="columnFilter" ItemsSource="{Binding FormatFilter.Options}"
+                SelectedItem="{Binding FormatFilter.Selected}" />
+      <ComboBox Classes="columnFilter" ItemsSource="{Binding InstalledAsFilter.Options}"
+                SelectedItem="{Binding InstalledAsFilter.Selected}" />
+      <ComboBox Classes="columnFilter" ItemsSource="{Binding TypeFilter.Options}"
+                SelectedItem="{Binding TypeFilter.Selected}" />
+      <ComboBox Classes="columnFilter" ItemsSource="{Binding VendorFilter.Options}"
+                SelectedItem="{Binding VendorFilter.Selected}" MaxDropDownHeight="420" MinWidth="180" />
+      <ComboBox Classes="columnFilter" ItemsSource="{Binding ArchitectureFilter.Options}"
+                SelectedItem="{Binding ArchitectureFilter.Selected}" />
+      <ComboBox Classes="columnFilter" ItemsSource="{Binding ScreenshotFilter.Options}"
+                SelectedItem="{Binding ScreenshotFilter.Selected}" />
+      <Button Content="Clear filters" Command="{Binding ClearFiltersCommand}"
+              IsVisible="{Binding HasAnyFilter}" Margin="0,0,0,8"
+              Background="Transparent" BorderThickness="0"
+              Foreground="{DynamicResource AccentBrush}" />
+    </WrapPanel>
+
+    <Border Background="{DynamicResource InsetBrush}" CornerRadius="6"
+            BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" ClipToBounds="True">
+      <DataGrid ItemsSource="{Binding Rows}" Name="Grid" Background="Transparent"
+                IsReadOnly="True" CanUserSortColumns="True" CanUserResizeColumns="True"
+                CanUserReorderColumns="True"
+                GridLinesVisibility="Horizontal" HeadersVisibility="Column"
+                HorizontalGridLinesBrush="{DynamicResource LineBrush}">
+        <DataGrid.Columns>
+          <!-- Widths are set so each header fits its own text; anything wider than the window scrolls
+               horizontally rather than clipping a column to an unreadable stub. -->
+          <DataGridTextColumn Binding="{Binding Name}" Width="185">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Plugin" ToolTip.Tip="The plugin's name, as the plugin reports it once loaded, or from the file before that." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding Format}" Width="85">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Format" ToolTip.Tip="The plugin format of this file: VST3 (the current standard) or VST2 (the older format)." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding InstalledAs}" Width="110">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Installed as" ToolTip.Tip="Every format this same plugin is installed in. &quot;VST3 + VST2&quot; means both a VST3 and a VST2 copy are on disk — usually put there by one installer. &quot;VST3&quot; or &quot;VST2&quot; alone means this is its only copy." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding Type}" Width="118">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Type" ToolTip.Tip="Instrument or effect, from the category the plugin declares. &quot;Unclassified&quot; when it declares neither." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding Vendor}" Width="145">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Vendor" ToolTip.Tip="Who makes the plugin." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding Version}" Width="90">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Version" ToolTip.Tip="The plugin's version, as the plugin reports it, or from the file's version information." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding Architecture}" Width="70">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Arch" ToolTip.Tip="64-bit or 32-bit build. Only 64-bit plugins can be loaded and screenshotted." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridTextColumn Binding="{Binding SizeMb}" Width="70">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="MB" ToolTip.Tip="Size of the plugin file on disk, in megabytes." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+          <DataGridCheckBoxColumn Binding="{Binding HasScreenshot}" Width="60">
+            <DataGridCheckBoxColumn.Header>
+              <TextBlock Text="Shot" ToolTip.Tip="Whether PlugBrowser has a screenshot of this plugin's interface." />
+            </DataGridCheckBoxColumn.Header>
+          </DataGridCheckBoxColumn>
+          <DataGridTextColumn Binding="{Binding Location}" Width="*" MinWidth="280">
+            <DataGridTextColumn.Header>
+              <TextBlock Text="Binary location" ToolTip.Tip="Where the plugin file lives on disk." />
+            </DataGridTextColumn.Header>
+          </DataGridTextColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+    </Border>
+
+  </DockPanel>
+  </DockPanel>
+</Window>

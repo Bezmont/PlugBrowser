@@ -45,26 +45,9 @@ public class DuplicateAnalyzerTests
     public void NormalizeName_KeepsDifferentProductsApart(string a, string b) =>
         Assert.NotEqual(DuplicateAnalyzer.NormalizeName(a), DuplicateAnalyzer.NormalizeName(b));
 
+    /// <summary>Two copies in the same format are not a cross-format duplicate.</summary>
     [Fact]
-    public void FindCrossFormatDuplicates_PairsTheTwoBuildsOfOneProduct()
-    {
-        var entries = new[]
-        {
-            Entry("Acid V", PluginFormat.Vst3),
-            Entry("Acid V", PluginFormat.Vst2),
-            Entry("Lonely Plugin", PluginFormat.Vst3),
-        };
-
-        var group = Assert.Single(DuplicateAnalyzer.FindCrossFormatDuplicates(entries));
-
-        Assert.Equal("Acid V", group.Name);
-        Assert.Equal(2, group.Entries.Count);
-        Assert.Equal([PluginFormat.Vst3, PluginFormat.Vst2], group.Formats.Order());
-    }
-
-    /// <summary>Two copies in the same format are a different problem, and not what this view is for.</summary>
-    [Fact]
-    public void FindCrossFormatDuplicates_IgnoresTwoCopiesOfOneFormat()
+    public void CrossFormatKeys_IgnoresTwoCopiesOfOneFormat()
     {
         var entries = new[]
         {
@@ -72,25 +55,7 @@ public class DuplicateAnalyzerTests
             Entry("Thing", PluginFormat.Vst3) with { Path = @"C:\b\Thing.vst3" },
         };
 
-        Assert.Empty(DuplicateAnalyzer.FindCrossFormatDuplicates(entries));
-    }
-
-    /// <summary>The VST3 copy is the keeper, so only the other build counts as reclaimable.</summary>
-    [Fact]
-    public void RedundantBytes_CountsOnlyTheNonPreferredCopy()
-    {
-        var entries = new[]
-        {
-            Entry("Acid V", PluginFormat.Vst3, size: 10 * 1024 * 1024),
-            Entry("Acid V", PluginFormat.Vst2, size: 4 * 1024 * 1024),
-        };
-
-        var group = Assert.Single(DuplicateAnalyzer.FindCrossFormatDuplicates(entries));
-
-        Assert.Equal(14 * 1024 * 1024, group.TotalBytes);
-        Assert.Equal(4 * 1024 * 1024, group.RedundantBytes);
-        // VST3 sorts first so the grid and the group name both lead with the keeper.
-        Assert.Equal(PluginFormat.Vst3, group.Entries[0].Format);
+        Assert.Empty(DuplicateAnalyzer.CrossFormatKeys(entries));
     }
 
     [Fact]
@@ -165,6 +130,39 @@ public class UniqueFilterAndClearTests
     }
 
     [Fact]
+    public void RedundantOnly_ShowsOnlyTheCopiesOfADuplicatedProduct()
+    {
+        var (vm, store, tree) = Build();
+        using (store) using (tree)
+        {
+            vm.RedundantOnly = true;
+
+            Assert.Equal(2, vm.Visible.Count);
+            Assert.All(vm.Visible, v => Assert.Equal("Both Formats", v.Name));
+            Assert.Equal("Redundant only (2)", vm.RedundantLabel);
+            Assert.True(vm.HasAnyFilter);
+        }
+    }
+
+    /// <summary>Both on would always show nothing, so each switches the other off.</summary>
+    [Fact]
+    public void UniqueAndRedundant_AreMutuallyExclusive()
+    {
+        var (vm, store, tree) = Build();
+        using (store) using (tree)
+        {
+            vm.UniqueOnly = true;
+            vm.RedundantOnly = true;
+            Assert.False(vm.UniqueOnly);
+            Assert.Equal(2, vm.Visible.Count);
+
+            vm.UniqueOnly = true;
+            Assert.False(vm.RedundantOnly);
+            Assert.Equal(2, vm.Visible.Count);
+        }
+    }
+
+    [Fact]
     public void UniqueCount_IsReportedInTheLabel()
     {
         var (vm, store, tree) = Build();
@@ -230,71 +228,5 @@ public class UniqueFilterAndClearTests
         {
             Assert.False(vm.HasAnyFilter);
         }
-    }
-}
-
-public class DuplicatesViewModelTests
-{
-    [Fact]
-    public void BuildsOneRowPerFileAndSummarisesTheWaste()
-    {
-        using var tree = new TempTree();
-        using var store = CatalogStore.Open(Path.Combine(tree.Root, "catalog.db"));
-
-        PluginEntry Make(string name, PluginFormat format, long mb) => new()
-        {
-            Path = $@"C:\x\{format}\{name}.{(format == PluginFormat.Vst3 ? "vst3" : "dll")}",
-            Format = format,
-            Architecture = PluginArchitecture.X64,
-            FileProduct = name,
-            FileSize = mb * 1024 * 1024,
-            State = ProbeState.Probed,
-            Classes = [new PluginClass { Index = 0, Name = name, Kind = PluginKind.Effect }],
-        };
-
-        store.Save([
-            Make("Acid V", PluginFormat.Vst3, 10),
-            Make("Acid V", PluginFormat.Vst2, 4),
-            Make("Lonely", PluginFormat.Vst3, 7),
-        ]);
-
-        var vm = new DuplicatesViewModel(store);
-
-        Assert.Equal(1, vm.ProductCount);
-        Assert.Equal(2, vm.FileCount);
-        Assert.Equal(1, vm.UniqueCount);
-        Assert.Equal(4, vm.RedundantMb);
-        Assert.Equal(2, vm.Rows.Count);
-
-        // Only the removable copy remains when the keeper is filtered out.
-        vm.RedundantOnly = true;
-        var only = Assert.Single(vm.Rows);
-        Assert.Equal("VST2", only.Format);
-        Assert.False(only.IsPreferredFormat);
-    }
-
-    [Fact]
-    public void ExportsTabSeparatedTextForASpreadsheet()
-    {
-        using var tree = new TempTree();
-        using var store = CatalogStore.Open(Path.Combine(tree.Root, "catalog.db"));
-
-        PluginEntry Make(string name, PluginFormat format) => new()
-        {
-            Path = $@"C:\x\{format}\{name}.vst3",
-            Format = format,
-            FileProduct = name,
-            State = ProbeState.Probed,
-            Classes = [new PluginClass { Index = 0, Name = name, Kind = PluginKind.Effect }],
-        };
-
-        store.Save([Make("Acid V", PluginFormat.Vst3), Make("Acid V", PluginFormat.Vst2)]);
-
-        string tsv = new DuplicatesViewModel(store).ToTabSeparated();
-        var lines = tsv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-        Assert.StartsWith("Product\tName\tFormat", lines[0]);
-        Assert.Equal(3, lines.Length); // header + two files
-        Assert.Contains("Acid V", lines[1]);
     }
 }

@@ -71,20 +71,22 @@ Filters, the chosen vendor, and window geometry are remembered between runs.
   selection genuinely shares — a differing one reports "(3 different)" rather than quietly showing the
   first plugin's value, which would be a claim about plugins it does not describe.
 
+### All detected plugins
+
+*Scan & Options → View all plugins* opens every catalogued file as one spreadsheet-style grid: plugin,
+format, which formats it is installed as, type, vendor, version, architecture, size, whether it has a
+screenshot, and the binary's location. Every column sorts from its header. A search box matches the text
+columns, and each column with a fixed set of values (format, installed as, type, vendor, architecture,
+screenshot) has its own drop-down filter. *Copy as spreadsheet* puts the rows shown, in the order shown,
+on the clipboard as TSV, and *Export CSV…* saves the same rows to a file. Every column header has a
+tooltip explaining it.
+
 ### Duplicates across formats
 
 A VST2 and a VST3 build of the same plugin are usually installed together by one installer, so most
-catalogs contain each plugin twice. On the development machine that is **139 products, 278 files, and
-2,733 MB of redundant VST2 copies** — 278 of 418 entries, leaving 140 unique.
-
-*Scan & Options → Review duplicates* opens a sortable grid: plugin, format, which formats it is
-installed as, type, vendor, version, architecture, size, whether it has a screenshot, and the binary's
-location. The VST3 copy is dimmed as the keeper, "Show only the redundant copies" narrows to what could
-go, and *Copy as spreadsheet* puts it on the clipboard as TSV. The footer lists the folders holding the
-redundant copies with a file count each, since switching those off under Scan locations is the action
-the whole view exists to inform.
-
-The **Unique only** facet applies the same analysis in the main gallery.
+catalogs contain each plugin twice. On the development machine that is **139 products and 278 files** —
+278 of 418 entries, leaving 140 unique. The grid's *Installed as* column shows it per row ("VST3 + VST2");
+the **Unique only** facet hides those plugins in the main gallery, and **Redundant only** shows just them.
 
 Matching is by a normalised product name, because the same product is named inconsistently across its
 own builds — "Addictive Drums 2" as VST3 against "Addictive Drums 2 x64" as VST2, "Comp FET-76" against

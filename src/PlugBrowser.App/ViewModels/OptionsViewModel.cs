@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using PlugBrowser.Core.Analysis;
 using PlugBrowser.Core.Discovery;
 using PlugBrowser.Core.Model;
 using PlugBrowser.Core.Probing;
@@ -90,20 +89,18 @@ public sealed partial class OptionsViewModel : ObservableObject
         }
     }
 
-    /// <summary>One-line account of how much of the catalog is the same plugin twice.</summary>
-    /// <remarks>Surfaced beside the scan roots because that is where the user can act on it: the
-    /// remedy is switching off the folders holding the redundant copies.</remarks>
-    public string DuplicateSummary
+    /// <summary>One-line count of everything the catalog holds, beside the button that lists it.</summary>
+    public string PluginListSummary
     {
         get
         {
-            var groups = DuplicateAnalyzer.FindCrossFormatDuplicates(_store.Load());
-            if (groups.Count == 0)
-                return "No plugins are installed in more than one format.";
+            var entries = _store.Load();
+            if (entries.Count == 0)
+                return "No plugins detected yet — run a scan first.";
 
-            double megabytes = groups.Sum(g => g.RedundantBytes) / (1024.0 * 1024);
-            return $"{groups.Count} plugins are installed in more than one format " +
-                   $"({megabytes:N0} MB of redundant copies).";
+            int vst3 = entries.Count(e => e.Format == PluginFormat.Vst3);
+            int vst2 = entries.Count(e => e.Format == PluginFormat.Vst2);
+            return $"{entries.Count:N0} plugins detected — {vst3:N0} VST3, {vst2:N0} VST2.";
         }
     }
 
@@ -117,7 +114,7 @@ public sealed partial class OptionsViewModel : ObservableObject
             Roots.Add(new ScanRootViewModel(root, OnRootEnabledChanged));
 
         OnPropertyChanged(nameof(EnabledSummary));
-        OnPropertyChanged(nameof(DuplicateSummary));
+        OnPropertyChanged(nameof(PluginListSummary));
     }
 
     /// <summary>Attributes each catalogued plugin to the root it lives under, for the count column.</summary>
@@ -274,8 +271,8 @@ public sealed partial class OptionsViewModel : ObservableObject
         };
     }
 
-    /// <summary>Builds the duplicates grid's view model over the same store.</summary>
-    public DuplicatesViewModel CreateDuplicatesView() => new(_store);
+    /// <summary>Builds the all-plugins grid's view model over the same store.</summary>
+    public PluginListViewModel CreatePluginListView() => new(_store);
 
     [RelayCommand]
     private void CancelScan()
