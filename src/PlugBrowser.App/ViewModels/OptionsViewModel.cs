@@ -202,8 +202,10 @@ public sealed partial class OptionsViewModel : ObservableObject
         try
         {
             var worker = new WorkerRunner(WorkerRunner.DefaultWorkerPath) { Capture = CaptureScreenshots };
+            using var log = ScanLog.Open();
             var service = new ScanService(_store, worker)
             {
+                Log = log,
                 Probe = CaptureScreenshots,
                 SkipUnchanged = !ForceRescan,
                 SkipFailed = SkipFailed,

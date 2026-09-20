@@ -20,8 +20,10 @@ public enum WorkerOutcome
 /// report, because the worker writes after every class.</param>
 /// <param name="Detail">Human-readable explanation for the failures list.</param>
 /// <param name="Duration">How long the run took.</param>
+/// <param name="Output">What the worker and the plugin wrote to stdout and stderr. Not part of the
+/// protocol, but often the only explanation a plugin gives — a licence or activation message, say.</param>
 public sealed record WorkerRun(
-    WorkerOutcome Outcome, InspectResult? Result, string? Detail, TimeSpan Duration);
+    WorkerOutcome Outcome, InspectResult? Result, string? Detail, TimeSpan Duration, string? Output = null);
 
 /// <summary>
 /// Runs <c>PlugBrowser.Worker.exe</c> against one bundle and collects its report.
@@ -46,6 +48,9 @@ public sealed class WorkerRunner
     public bool Capture { get; init; } = true;
 
     public WorkerRunner(string workerPath) => _workerPath = workerPath;
+
+    /// <summary>The worker executable this runner launches.</summary>
+    public string WorkerPath => _workerPath;
 
     /// <summary>True if the worker executable is actually present.</summary>
     public bool IsAvailable => File.Exists(_workerPath);
@@ -161,11 +166,12 @@ public sealed class WorkerRunner
             .ConfigureAwait(false);
 
         var result = InspectResult.FromJsonFile(resultPath);
+        string? output = CollectOutput(drainOut, drainError);
 
         if (timedOut)
         {
             return new WorkerRun(WorkerOutcome.TimedOut, result,
-                $"Exceeded its {Timeout.TotalSeconds:0}s budget and was terminated.", started.Elapsed);
+                $"Exceeded its {Timeout.TotalSeconds:0}s budget and was terminated.", started.Elapsed, output);
         }
 
         // A non-zero exit with no report means the plugin took the process down with it.
@@ -173,25 +179,36 @@ public sealed class WorkerRunner
         if (result is null)
         {
             return new WorkerRun(WorkerOutcome.Crashed, null,
-                $"Worker exited with code {exitCode} without producing a report.", started.Elapsed);
+                $"Worker exited with code {exitCode} without producing a report.", started.Elapsed, output);
         }
 
         if (!result.Loaded)
-            return new WorkerRun(WorkerOutcome.Completed, result, result.Error, started.Elapsed);
+            return new WorkerRun(WorkerOutcome.Completed, result, result.Error, started.Elapsed, output);
 
         // The worker's own watchdog got there first. Trust its word over the exit code: it ends the
         // process with FailFast, whose 0xC0000409 is indistinguishable from a genuine crash.
         if (result.TimedOut)
-            return new WorkerRun(WorkerOutcome.TimedOut, result, result.Error, started.Elapsed);
+            return new WorkerRun(WorkerOutcome.TimedOut, result, result.Error, started.Elapsed, output);
 
         // A report that never finished enumerating means the worker died partway through.
         if (!result.Enumerated)
         {
             return new WorkerRun(WorkerOutcome.Crashed, result,
-                $"Worker stopped partway through (exit code {exitCode}).", started.Elapsed);
+                $"Worker stopped partway through (exit code {exitCode}).", started.Elapsed, output);
         }
 
-        return new WorkerRun(WorkerOutcome.Completed, result, null, started.Elapsed);
+        return new WorkerRun(WorkerOutcome.Completed, result, null, started.Elapsed, output);
+    }
+
+    /// <summary>Whatever the drains managed to read; a pipe still held open by a helper process yields nothing.</summary>
+    private static string? CollectOutput(Task<string> stdout, Task<string> stderr)
+    {
+        static string Read(Task<string> drain) =>
+            drain.IsCompletedSuccessfully ? drain.Result.Trim() : "";
+
+        string combined = string.Join(Environment.NewLine,
+            new[] { Read(stdout), Read(stderr) }.Where(s => s.Length > 0));
+        return combined.Length > 0 ? combined : null;
     }
 
     private static int SafeExitCode(Process process)

@@ -115,12 +115,22 @@ public sealed class ScanService
     /// <summary>Load plugins at all. When false the scan stops after discovery.</summary>
     public bool Probe { get; init; } = true;
 
+    /// <summary>Where each bundle's outcome and capture errors are recorded. Null logs nothing.</summary>
+    public ScanLog? Log { get; init; }
+
     public async Task<ScanSummary> ScanAsync(
         IReadOnlyList<string> roots,
         IProgress<ScanStatus>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
+
+        Log?.BeginScan("Scan", _worker,
+        [
+            $"Roots     {string.Join(" · ", roots)}",
+            $"Options   probe {(Probe ? "on" : "off")} · skip unchanged {(SkipUnchanged ? "on" : "off")} · " +
+            $"skip failed {(SkipFailed ? "on" : "off")}",
+        ]);
 
         progress?.Report(new ScanStatus(ScanPhase.Discovering, 0, 0, "Searching for plugins…", 0, 0));
 
@@ -142,6 +152,10 @@ public sealed class ScanService
 
         var discovered = PreserveProbeResults(found, stored);
 
+        Log?.Line($"DISCOVERED  {discovered.Count} plugins ({tally}) · " +
+                  $"{discovered.Count(e => e.Format == PluginFormat.Vst3)} VST3, " +
+                  $"{discovered.Count(e => e.Format != PluginFormat.Vst3)} other");
+
         // Persisted before probing starts: discovery alone is a complete, useful catalog, and it should
         // survive a cancelled or crashing probe phase.
         _store.Save(discovered);
@@ -151,7 +165,11 @@ public sealed class ScanService
         if (!Probe || !_worker.IsAvailable)
         {
             progress?.Report(new ScanStatus(ScanPhase.Finished, 0, 0, "Discovery complete.", 0, 0, tally));
-            return new ScanSummary(discovered.Count, 0, 0, 0, 0, started.Elapsed, Tally: tally);
+            var summary = new ScanSummary(discovered.Count, 0, 0, 0, 0, started.Elapsed, Tally: tally);
+            if (Probe)
+                Log?.Line($"NOT PROBED  worker not found at {_worker.WorkerPath}");
+            Log?.EndScan(summary);
+            return summary;
         }
 
         return await ProbeAsync(discovered, started, SkipUnchanged, SkipFailed, tally, progress,
@@ -210,9 +228,12 @@ public sealed class ScanService
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
 
+        Log?.BeginScan("Reload", _worker, [$"Selected  {entries.Count} plugins"]);
+
         if (!_worker.IsAvailable)
         {
             progress?.Report(new ScanStatus(ScanPhase.Finished, 0, 0, "Worker not available.", 0, 0));
+            Log?.Line($"NOT PROBED  worker not found at {_worker.WorkerPath}");
             return new ScanSummary(entries.Count, 0, 0, 0, 0, started.Elapsed);
         }
 
@@ -319,11 +340,23 @@ public sealed class ScanService
             .Where(e => !blacklist.Contains(e.Path))
             .ToList();
 
+        // VST2 is excluded by design and would only be noise; a VST3 passed over is worth knowing about.
+        foreach (var entry in discovered.Where(e => e.Format == PluginFormat.Vst3).Except(candidates))
+        {
+            Log?.NotProbed(entry, blacklist.Contains(entry.Path)
+                ? "blacklisted"
+                : $"{entry.Architecture} binary; the worker is 64-bit");
+        }
+
         int completed = 0, captured = 0, failed = 0, skipped = 0, skippedFailed = 0, probed = 0;
 
         foreach (var entry in candidates)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (cancellationToken.IsCancellationRequested)
+            {
+                Log?.Line($"CANCELLED  after {completed} of {candidates.Count} bundles");
+                cancellationToken.ThrowIfCancellationRequested();
+            }
 
             // An already-probed, unchanged bundle costs a process launch and up to 45 seconds to learn
             // nothing new, so skipping it is the difference between a quick rescan and a full one.
@@ -350,14 +383,28 @@ public sealed class ScanService
                 else
                     skippedFailed++;
 
+                Log?.Line(skip == SkipReason.Unchanged
+                    ? $"SKIPPED    {entry.Path}  — unchanged since last probe"
+                    : $"SKIPPED    {entry.Path}  — {entry.State} last time ({entry.StateDetail}), not retrying");
+
                 completed++;
                 continue;
             }
 
-            var run = await _worker.RunAsync(entry.Path, outputDirectory, cancellationToken)
-                .ConfigureAwait(false);
+            WorkerRun run;
+            try
+            {
+                run = await _worker.RunAsync(entry.Path, outputDirectory, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Log?.Line($"CANCELLED  while loading {entry.Path}");
+                throw;
+            }
 
             var merged = Merge(entry, run);
+            Log?.Probed(entry, run, merged);
 
             if (merged.State == ProbeState.Probed)
                 probed++;
@@ -375,8 +422,10 @@ public sealed class ScanService
         progress?.Report(new ScanStatus(ScanPhase.Finished, completed, candidates.Count,
             "Scan complete.", captured, failed));
 
-        return new ScanSummary(discovered.Count, probed, captured, failed, skipped, started.Elapsed,
+        var summary = new ScanSummary(discovered.Count, probed, captured, failed, skipped, started.Elapsed,
             skippedFailed, tally);
+        Log?.EndScan(summary);
+        return summary;
     }
 
     /// <summary>Folds a worker report into the entry discovery produced.</summary>
@@ -463,6 +512,8 @@ public sealed class ScanService
         "PrintWindow" => CaptureMethod.PrintWindow,
         "WindowsGraphicsCapture" => CaptureMethod.WindowsGraphicsCapture,
         "OnScreenBitBlt" => CaptureMethod.OnScreenBitBlt,
+        "OnScreenTransparent" => CaptureMethod.OnScreenTransparent,
+        "OnScreenVisible" => CaptureMethod.OnScreenVisible,
         _ => CaptureMethod.None,
     };
 

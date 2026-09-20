@@ -25,8 +25,9 @@ machine (196 VST3, 222 VST2) in about 300 ms, without loading a single plugin.
 ```
 
 That is **99% of installed VST3 plugins photographed** — effects, instruments and copy-protected titles
-alike — every one via `PrintWindow`; the GPU fallbacks have still never been needed, which is a better
-result than expected for a library this heavy on OpenGL-based UIs.
+alike — every one via `PrintWindow` off screen. That machine is a hybrid-graphics laptop, which is why:
+on a desktop GPU the same library lost all 87 Arturia editors to blank captures until the on-screen
+fallback below was added.
 
 For comparison, the managed worker on the same library managed `190 loaded · 189 screenshots · 15
 failed` in 22 minutes. Most of that extra time was the 45-second timeout burned by each plugin it could
@@ -171,6 +172,12 @@ Two details that are easy to get wrong:
 - **A blank capture is a silent failure, not an error.** An OpenGL or Direct3D editor returns solid
   black *and* a success code, so the only way to detect it is to inspect the pixels — hence the
   distinct-colour check that rejects flat images.
+- **Off screen is not the same everywhere.** OpenGL lets a driver skip drawing pixels that are on no
+  monitor. A hybrid laptop draws the whole frame anyway and copies it in, so the off-desktop window
+  captures fine; a desktop GPU driving the display directly skips every pixel and the capture is blank.
+  So a blank capture is retried with the window on the primary monitor, first as a click-through window
+  at 1/255 opacity (`OnScreenTransparent`, invisible in practice), then fully visible (`OnScreenVisible`).
+  `--onscreen` makes the native worker skip straight to those for testing.
 
 ### Copy-protected plugins and the CLR
 
@@ -240,6 +247,10 @@ dotnet run --project src/PlugBrowser.App     # the browser
 ```
 
 The catalog lives at `%LOCALAPPDATA%\PlugBrowser\catalog.db`. Deleting it forces a full rescan.
+
+Every scan and reload appends to `%LOCALAPPDATA%\PlugBrowser\scan.log`: each bundle's outcome, every
+class's editor size and capture method, the reason any screenshot was not taken, and whatever the plugin
+printed to the console. It rotates to `scan.previous.log` past 4 MB. Start there when a plugin has no picture.
 
 ## How discovery works
 

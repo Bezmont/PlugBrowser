@@ -265,7 +265,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 return;
             }
 
-            var service = new ScanService(_store, worker);
+            using var log = ScanLog.Open();
+            var service = new ScanService(_store, worker) { Log = log };
             var progress = new Progress<ScanStatus>(status =>
             {
                 RescanProgress = (status.Fraction ?? 0) * 100;

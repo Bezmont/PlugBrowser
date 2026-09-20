@@ -328,15 +328,37 @@ void EditorHostWindow::WaitUntilStable(DWORD minimumMs, DWORD maximumMs) {
     }
 }
 
+void EditorHostWindow::MoveOnScreen(bool visible) {
+    if (!topLevel_) return;
+
+    const LONG_PTR style = ::GetWindowLongPtrW(topLevel_, GWL_EXSTYLE);
+    if (visible) {
+        ::SetWindowLongPtrW(topLevel_, GWL_EXSTYLE, style & ~(WS_EX_LAYERED | WS_EX_TRANSPARENT));
+    } else {
+        ::SetWindowLongPtrW(topLevel_, GWL_EXSTYLE, style | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+        ::SetLayeredWindowAttributes(topLevel_, 0, 1, LWA_ALPHA);
+    }
+
+    // The primary monitor's work area, so the taskbar does not cover it. An editor larger than the
+    // monitor still loses whatever hangs off the edge, which beats losing all of it.
+    RECT work{};
+    if (!::SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0)) work = RECT{0, 0, 0, 0};
+
+    // Topmost: a window covered by another fails the same ownership test as one off screen.
+    ::SetWindowPos(topLevel_, HWND_TOPMOST, work.left, work.top, 0, 0,
+                   SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+    ::RedrawWindow(topLevel_, nullptr, nullptr, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_UPDATENOW);
+}
+
 bool EditorHostWindow::ForeignWindowAppeared() const {
     ForeignWindowSearch search{{topLevel_, child_}, false};
     ::EnumThreadWindows(::GetCurrentThreadId(), ForeignWindowProc, reinterpret_cast<LPARAM>(&search));
     return search.found;
 }
 
-CaptureResult CaptureWindowToPng(HWND window, const std::wstring& pngPath) {
+CaptureResult CaptureWindowToPng(HWND window, const std::wstring& pngPath, const char* method) {
     CaptureResult result;
-    result.method = "PrintWindow";
+    result.method = method;
 
     std::vector<BYTE> pixels;
     int width = 0;
@@ -345,6 +367,7 @@ CaptureResult CaptureWindowToPng(HWND window, const std::wstring& pngPath) {
 
     const int stride = width * 4;
     if (IsBlank(pixels, width, height, stride)) {
+        result.blank = true;
         result.error = "Captured image was blank - the editor most likely renders through OpenGL or Direct3D.";
         return result;
     }

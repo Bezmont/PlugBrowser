@@ -2,6 +2,7 @@
 //
 // Same algorithm as the managed worker this replaces: create a top-level window far off any monitor,
 // parent the plug-in's editor into a child of it, pump until the drawing settles, then PrintWindow.
+// When that comes back blank, the window is brought on screen and captured again -- see MoveOnScreen.
 #pragma once
 
 #include <string>
@@ -32,6 +33,7 @@ struct CaptureResult {
     bool        ok = false;
     int         width = 0;
     int         height = 0;
+    bool        blank = false;  ///< Captured, but empty -- the case another rung of the ladder can fix.
     std::string error;    ///< Why it failed, when it did.
     std::string method;   ///< Which rung of the ladder produced it.
 };
@@ -46,6 +48,20 @@ public:
 
     /// Resizes both windows, for when the plug-in reports its real size only after attaching.
     void Resize(int width, int height);
+
+    /// Brings the host window onto the primary monitor, for editors that draw nothing off screen.
+    ///
+    /// OpenGL may skip drawing any pixel that is not on a monitor -- the spec's "pixel ownership test".
+    /// Whether a driver actually does depends on the GPU setup: on a hybrid laptop the frame is drawn off
+    /// screen and copied in whole, so a window parked at -32000 captures fine, but a desktop GPU driving
+    /// the display directly skips every pixel and PrintWindow returns an empty window. Every Arturia
+    /// editor draws through OpenGL, and every one came back blank that way on a desktop machine.
+    ///
+    /// When |visible| is false the window is a click-through layered window at 1/255 opacity: on screen
+    /// as far as the driver is concerned, invisible as far as the user is. PrintWindow reads the window's
+    /// own content, not the blended result, so the opacity does not reach the capture. When true it is
+    /// fully opaque -- the last resort, for a driver that also skips drawing a transparent window.
+    void MoveOnScreen(bool visible);
 
     /// Runs the message loop for the given duration.
     static void PumpMessages(DWORD milliseconds);
@@ -66,7 +82,7 @@ private:
 };
 
 /// Captures a window with PrintWindow and writes it as a PNG, plus a downscaled thumbnail.
-/// Rejects blank results, which is how a GPU-rendered editor fails.
-CaptureResult CaptureWindowToPng(HWND window, const std::wstring& pngPath);
+/// Rejects blank results, which is how a GPU-rendered editor fails. |method| names the rung for the report.
+CaptureResult CaptureWindowToPng(HWND window, const std::wstring& pngPath, const char* method);
 
 }  // namespace plugbrowser

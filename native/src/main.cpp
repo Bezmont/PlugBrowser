@@ -47,6 +47,7 @@ struct Options {
     std::wstring outputDirectory;
     int  classIndex = -1;       ///< -1 means every class.
     bool capture = true;
+    bool onScreen = false;      ///< Skip the off-screen attempt, for diagnosing the on-screen rungs.
     DWORD minimumSettleMs = 250;
     DWORD maximumSettleMs = 3000;
     DWORD timeoutMs = 45000;
@@ -150,6 +151,8 @@ bool ParseOptions(int argc, wchar_t** argv, Options& options) {
             options.classIndex = _wtoi(argv[++i]);
         } else if (arg == L"--no-capture") {
             options.capture = false;
+        } else if (arg == L"--onscreen") {
+            options.onScreen = true;
         } else if (arg == L"--settle-ms") {
             if (!nextNumber(options.minimumSettleMs)) return false;
         } else if (arg == L"--max-settle-ms") {
@@ -311,7 +314,28 @@ void CaptureEditor(Vst3PluginHandle plugin, ClassReport& report, const Options& 
     _snwprintf_s(leaf, _TRUNCATE, L"class-%d.png", report.index);
     const std::wstring pngPath = Combine(options.outputDirectory, leaf);
 
-    auto result = plugbrowser::CaptureWindowToPng(host.TopLevel(), pngPath);
+    // Off screen first: it is invisible and works for most editors. A blank result means the editor
+    // drew nothing there, so it is retried on screen -- transparently, then visibly. See MoveOnScreen.
+    plugbrowser::CaptureResult result;
+    result.blank = true;
+    if (!options.onScreen)
+        result = plugbrowser::CaptureWindowToPng(host.TopLevel(), pngPath, "PrintWindow");
+
+    if (result.blank) {
+        host.MoveOnScreen(/*visible*/ false);
+        host.WaitUntilStable(options.minimumSettleMs, options.maximumSettleMs);
+        result = plugbrowser::CaptureWindowToPng(host.TopLevel(), pngPath, "OnScreenTransparent");
+    }
+
+    if (result.blank) {
+        host.MoveOnScreen(/*visible*/ true);
+        host.WaitUntilStable(options.minimumSettleMs, options.maximumSettleMs);
+        result = plugbrowser::CaptureWindowToPng(host.TopLevel(), pngPath, "OnScreenVisible");
+    }
+
+    if (result.blank)
+        result.error = "Captured image was blank off screen and on screen - the editor drew nothing.";
+
     report.captureMethod = result.method;
 
     if (result.ok) {
@@ -398,6 +422,7 @@ int wmain(int argc, wchar_t** argv) {
                    L"PlugBrowser.NativeWorker --inspect <bundle.vst3> --outdir <directory> [options]\n"
                    L"  --class <n>         inspect only this class index\n"
                    L"  --no-capture        read metadata only, do not open editors\n"
+                   L"  --onscreen          skip the off-screen capture and go straight to on screen\n"
                    L"  --settle-ms <n>     minimum settle before capture (default 250)\n"
                    L"  --max-settle-ms <n> maximum settle while the editor keeps changing (default 3000)\n"
                    L"  --timeout-ms <n>    hard self-kill budget (default 45000)\n");

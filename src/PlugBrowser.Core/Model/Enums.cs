@@ -63,4 +63,9 @@ public enum CaptureMethod
     PrintWindow = 1,
     WindowsGraphicsCapture = 2,
     OnScreenBitBlt = 3,
+    /// <summary>PrintWindow after moving the host on screen at near-zero opacity, for OpenGL editors that
+    /// draw nothing off screen.</summary>
+    OnScreenTransparent = 4,
+    /// <summary>PrintWindow with the host on screen and fully visible — the last resort.</summary>
+    OnScreenVisible = 5,
 }
