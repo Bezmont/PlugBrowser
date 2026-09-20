@@ -179,7 +179,9 @@ Two details that are easy to get wrong:
   captures fine; a desktop GPU driving the display directly skips every pixel and the capture is blank.
   So a blank capture is retried with the window on the primary monitor, first as a click-through window
   at 1/255 opacity (`OnScreenTransparent`, invisible in practice), then fully visible (`OnScreenVisible`).
-  `--onscreen` makes the native worker skip straight to those for testing.
+  On the desktop machine that recovered every blank editor: 88 through the transparent rung, and exactly
+  one — Arturia's Bus PEAK — that drew only once the window was genuinely visible, which is what keeps
+  the last rung in the ladder. `--onscreen` makes the native worker skip straight to those for testing.
 
 ### Copy-protected plugins and the CLR
 
