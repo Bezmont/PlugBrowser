@@ -118,10 +118,58 @@ public sealed class ScanService
     /// <summary>Where each bundle's outcome and capture errors are recorded. Null logs nothing.</summary>
     public ScanLog? Log { get; init; }
 
+    /// <summary>Where to write the catalog export (see <see cref="CatalogExporter"/>) when a scan or
+    /// reload ends, however it ends. Null writes none, which is the default so that tests and other
+    /// callers never overwrite the user's real export.</summary>
+    public string? ExportPath { get; init; }
+
     public async Task<ScanSummary> ScanAsync(
         IReadOnlyList<string> roots,
         IProgress<ScanStatus>? progress = null,
         CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await ScanCoreAsync(roots, progress, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            // Also after a cancel or failure: whatever was saved before then is in the catalog, and the
+            // export should match it.
+            WriteExport();
+        }
+    }
+
+    public async Task<ScanSummary> RescanAsync(
+        IReadOnlyList<PluginEntry> entries,
+        IProgress<ScanStatus>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await RescanCoreAsync(entries, progress, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            WriteExport();
+        }
+    }
+
+    private void WriteExport()
+    {
+        if (ExportPath is null)
+            return;
+
+        if (CatalogExporter.TryExport(_store, ExportPath) is { } error)
+            Log?.Line($"EXPORT FAILED  {ExportPath}  — {error}");
+        else
+            Log?.Line($"EXPORTED   {ExportPath}");
+    }
+
+    private async Task<ScanSummary> ScanCoreAsync(
+        IReadOnlyList<string> roots,
+        IProgress<ScanStatus>? progress,
+        CancellationToken cancellationToken)
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
 
@@ -221,10 +269,10 @@ public sealed class ScanService
     /// twenty-minute scan over the whole library. The unchanged-file check is deliberately bypassed;
     /// nothing about the file changed, only the licence state outside it.
     /// </remarks>
-    public async Task<ScanSummary> RescanAsync(
+    private async Task<ScanSummary> RescanCoreAsync(
         IReadOnlyList<PluginEntry> entries,
-        IProgress<ScanStatus>? progress = null,
-        CancellationToken cancellationToken = default)
+        IProgress<ScanStatus>? progress,
+        CancellationToken cancellationToken)
     {
         var started = System.Diagnostics.Stopwatch.StartNew();
 

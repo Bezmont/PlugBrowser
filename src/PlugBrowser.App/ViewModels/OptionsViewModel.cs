@@ -203,6 +203,7 @@ public sealed partial class OptionsViewModel : ObservableObject
             var service = new ScanService(_store, worker)
             {
                 Log = log,
+                ExportPath = CatalogExporter.DefaultPath,
                 Probe = CaptureScreenshots,
                 SkipUnchanged = !ForceRescan,
                 SkipFailed = SkipFailed,
