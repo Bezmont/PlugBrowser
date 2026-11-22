@@ -1,8 +1,12 @@
-# Builds and tests every push and pull request. Pushing a version tag (v1.2.3) also packages the app
-# and publishes it as a GitHub Release, with the zip as the download.
+# Builds and tests every push and pull request, and publishes a GitHub Release (the zip as the
+# download) for:
 #
-#   git tag v1.0.0
-#   git push origin v1.0.0
+#   - every push to main, i.e. every merged pull request. The version is the series in version.txt
+#     plus the next free patch number: 1.0.0, 1.0.1, ... Bump version.txt to start a new series.
+#   - a version tag pushed by hand (v1.2.3, or v1.2.3-beta.1 for a pre-release):
+#       git tag v1.2.3
+#       git push origin v1.2.3
+#   - a manual run (Actions > Build > Run workflow) on main, same numbering as a push.
 
 name: Build
 
@@ -14,7 +18,13 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed only to create the release on a tag push
+  contents: write   # needed only to create the release
+
+# Two merges in quick succession must not both claim the same patch number, so releases run one at a
+# time, in order. Pull request builds are not held up by this.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.run_id) || 'release' }}
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -23,6 +33,34 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v7
+        with:
+          fetch-tags: true
+          fetch-depth: 0   # tags are only fetched alongside the history they point at
+
+      # Decides whether this run publishes a release, and under which version.
+      - name: Choose version
+        id: version
+        shell: pwsh
+        run: |
+          $release = $false
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            $tag = '${{ github.ref_name }}'
+            $release = $true
+          } elseif ('${{ github.ref }}' -eq 'refs/heads/main' -and '${{ github.event_name }}' -ne 'pull_request') {
+            $series = (Get-Content version.txt -Raw).Trim()
+            if ($series -notmatch '^\d+\.\d+$') { throw "version.txt must hold a series like 1.0, not '$series'." }
+            $patches = git tag --list "v$series.*" |
+              Where-Object { $_ -match "^v$([regex]::Escape($series))\.(\d+)$" } |
+              ForEach-Object { [int]$Matches[1] }
+            $next = if ($patches) { ($patches | Measure-Object -Maximum).Maximum + 1 } else { 0 }
+            $tag = "v$series.$next"
+            $release = $true
+          } else {
+            $tag = "0.0.0-ci.${{ github.run_number }}"
+          }
+          Write-Host "Version: $tag (release: $release)"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "release=$($release.ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
       # NetPlugHost is a submodule, and it in turn pins the Steinberg VST3 SDK. The host compiles only
       # three of the SDK's own submodules, so those are all that is fetched - the SDK's GUI library,
@@ -51,8 +89,7 @@ jobs:
         id: package
         shell: pwsh
         run: |
-          $version = if ('${{ github.ref_type }}' -eq 'tag') { '${{ github.ref_name }}' } else { "0.0.0-ci.${{ github.run_number }}" }
-          $zip = ./publish.ps1 -Version $version -SkipNative | Select-Object -Last 1
+          $zip = ./publish.ps1 -Version '${{ steps.version.outputs.tag }}' -SkipNative | Select-Object -Last 1
           "zip=$zip" >> $env:GITHUB_OUTPUT
 
       - name: Upload build
@@ -62,9 +99,12 @@ jobs:
           path: ${{ steps.package.outputs.zip }}
 
       - name: Publish release
-        if: github.ref_type == 'tag'
+        if: steps.version.outputs.release == 'true'
         uses: softprops/action-gh-release@v3
         with:
+          # On a main push the tag does not exist yet; the release creates it on the commit built.
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: ${{ steps.package.outputs.zip }}
           generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(steps.version.outputs.tag, '-') }}
