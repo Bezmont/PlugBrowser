@@ -108,6 +108,16 @@ silently returns nothing. `OnlyRT`, `NoOfflineProcess` and the channel-layout ma
 *capabilities* the spec packs into the same string as musical categories — real, but noise in a list
 meant for picking "delay" or "reverb".
 
+## Catalog export
+
+After every scan or reload, and at startup if it is out of date, PlugBrowser writes its catalog to
+`%LOCALAPPDATA%\PlugBrowser\export\plugins.json` for other programs to use. The format is versioned
+and documented in [docs/catalog-export.md](docs/catalog-export.md). Other programs should read that
+file, never the SQLite catalog, which is a private cache rebuilt whenever its schema changes.
+
+[AltraPlugHost](https://github.com/Bezmont/AltraPlugHost) uses it to show a screenshot browser for
+picking plugins.
+
 ## Layout
 
 ```

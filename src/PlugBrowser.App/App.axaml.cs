@@ -56,6 +56,12 @@ public partial class App : Application
             // The store is owned for the life of the app: it holds the SQLite connection, and opening
             // it per-operation would fight WAL mode for no benefit.
             var store = CatalogStore.Open();
+
+            // Catalogs from before the export existed, or changed by an older build, get one now.
+            // Best effort: other programs read it, PlugBrowser itself never does.
+            if (CatalogExporter.IsStale(CatalogStore.DefaultPath))
+                CatalogExporter.TryExport(store);
+
             var viewModel = new MainWindowViewModel(store);
             viewModel.LoadCatalog();
             viewModel.RestoreState();
