@@ -158,12 +158,17 @@ Visual C++ Redistributable.
 
 ### Releases
 
-`.github/workflows/build.yml` builds and tests every push. Pushing a version tag also packages the app
-and publishes a GitHub Release with the zip attached:
+`.github/workflows/build.yml` builds and tests every push and pull request. Every push to `main`, so
+every merged pull request, also packages the app and publishes a GitHub Release with the zip attached.
+Releases are numbered from the series in `version.txt` plus the next free patch number: `1.0.0`,
+`1.0.1`, and so on. To start a new series, change `version.txt` (to `1.1`, say) in the pull request
+that warrants it.
+
+A version can also be released by hand by pushing a tag:
 
 ```powershell
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.1.0-beta.1
+git push origin v1.1.0-beta.1
 ```
 
 A tag with a suffix, such as `v1.1.0-beta.1`, is published as a pre-release.
